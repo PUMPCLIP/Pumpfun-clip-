@@ -6,4 +6,4 @@
 - Uploads are private local files with access checks and ffprobe inspection. This is not malware scanning, distributed storage, or production media delivery.
 - The development SOL treasury is an operationally controlled address. Campaign-specific custody, signer isolation, dual approval, daily limits, refunds, payout reconciliation and a legal review are required before any real-money launch.
 - Protect the database, media directory, OAuth client secret, wallet signers and RPC credentials. Never commit `.env.local`, keys or the media directory.
-- Rate limits, session rotation, MFA for future admin actions, worker retries, upload duration inspection beyond ffprobe, full audit coverage and production monitoring remain outstanding.
+- Per-user database limits bound uploads, renders, reports and social posting attempts. IP and distributed edge protection, session rotation, MFA for future admin actions, worker retries, upload duration inspection beyond ffprobe, full audit coverage and production monitoring remain outstanding.

@@ -5,6 +5,7 @@ import {ApiError,hash,random,requireUser,mutation,revokeSession,jsonError} from 
 import {config,raw} from '@/lib/config';
 import {address,balance,verifyWalletSignature,verifyTokenTransfer,verifySolTransfer,assertDevnet} from '@/lib/chain';
 import {gate} from '@/lib/access';
+import {rateLimit} from '@/lib/rate-limit';
 export const runtime='nodejs';
 type Context={params:Promise<{path:string[]}>};
 const uuid=z.string().uuid();
@@ -101,7 +102,8 @@ async function handle(request:Request,path:string[],method:string):Promise<Respo
     const data=await body(request,z.object({title:z.string().min(5).max(120).optional(),description:z.string().max(5000).optional(),
       licenseTerms:z.string().min(10).max(5000).optional(),sourceAssetId:uuid.optional(),
       targetPlatforms:z.array(z.enum(['tiktok','youtube','instagram','x'])).optional(),
-      fixedRewardLamports:z.string().regex(/^[0-9]+$/).optional(),entryFeeRaw:z.string().regex(/^[0-9]+$/).optional()}));
+      fixedRewardLamports:z.string().regex(/^[0-9]+$/).optional(),entryFeeRaw:z.string().regex(/^[0-9]+$/).optional(),
+      proofPolicy:z.enum(['manual','provider']).optional()}));
     if(data.sourceAssetId) {
       const asset=await one('SELECT id FROM media_assets WHERE id=$1 AND owner_id=$2 AND status=$3 AND rights_declared_at IS NOT NULL',[data.sourceAssetId,user.user_id,'verified']);
       if(!asset) throw new ApiError('SOURCE_RIGHTS_REQUIRED',422);
@@ -111,8 +113,8 @@ async function handle(request:Request,path:string[],method:string):Promise<Respo
     const updated=await one<any>(`UPDATE campaigns SET title=COALESCE($2,title),description=COALESCE($3,description),
       license_terms=COALESCE($4,license_terms),source_asset_id=COALESCE($5,source_asset_id),
       target_platforms=COALESCE($6,target_platforms),fixed_reward_lamports=COALESCE($7,fixed_reward_lamports),
-      entry_fee_raw=COALESCE($8,entry_fee_raw),updated_at=now() WHERE id=$1 RETURNING *`,
-      [p[1],data.title,data.description,data.licenseTerms,data.sourceAssetId,data.targetPlatforms,data.fixedRewardLamports,data.entryFeeRaw]);
+      entry_fee_raw=COALESCE($8,entry_fee_raw),proof_policy=COALESCE($9,proof_policy),updated_at=now() WHERE id=$1 RETURNING *`,
+      [p[1],data.title,data.description,data.licenseTerms,data.sourceAssetId,data.targetPlatforms,data.fixedRewardLamports,data.entryFeeRaw,data.proofPolicy]);
     await audit(db,user.user_id,'campaign.updated','campaign',p[1]); return reply(updated);
   }
   if(method==='POST' && p.join('/')==='fees/intents') {
@@ -199,18 +201,23 @@ async function handle(request:Request,path:string[],method:string):Promise<Respo
   }
   if(method==='GET' && p[0]==='campaigns' && p[2]==='submissions') {
     const c=await campaignOwner(p[1],user.user_id);
-    const rows=await db.query('SELECT s.*,u.display_name AS clipper_name FROM submissions s JOIN users u ON u.id=s.clipper_id WHERE s.campaign_id=$1 ORDER BY s.created_at DESC',[c.id]); return reply(rows.rows);
+    const rows=await db.query('SELECT s.*,u.display_name AS clipper_name,p.provider AS proof_provider,p.status AS proof_status,p.post_id AS proof_post_id FROM submissions s JOIN users u ON u.id=s.clipper_id LEFT JOIN social_publications p ON p.id=s.publication_id WHERE s.campaign_id=$1 ORDER BY s.created_at DESC',[c.id]); return reply(rows.rows);
   }
   if(method==='POST' && p[0]==='campaigns' && p[2]==='submissions') {
     await gate(user.user_id,'clipper');
     const member=await one<any>('SELECT id FROM campaign_memberships WHERE campaign_id=$1 AND clipper_id=$2',[p[1],user.user_id]);
     if(!member) throw new ApiError('JOIN_REQUIRED',403);
     const c=await one<any>('SELECT * FROM campaigns WHERE id=$1',[p[1]]); if(c?.state!=='live') throw new ApiError('CAMPAIGN_NOT_LIVE',409);
-    const data=await body(request,z.object({assetId:uuid,socialUrl:z.url().max(2000).optional()}));
+    const data=await body(request,z.object({assetId:uuid,socialUrl:z.url().max(2000).optional(),publicationId:uuid.optional()}));
     const asset=await one<any>("SELECT id,sha256 FROM media_assets WHERE id=$1 AND owner_id=$2 AND kind='clip' AND status='verified'",[data.assetId,user.user_id]);
     if(!asset) throw new ApiError('ASSET_REQUIRED',422);
+    if(data.publicationId){
+      const publication=await one<any>("SELECT provider,status FROM social_publications WHERE id=$1 AND user_id=$2 AND asset_id=$3",[data.publicationId,user.user_id,asset.id]);
+      if(!publication||publication.status!=='published'||!c.target_platforms.includes(publication.provider))throw new ApiError('PROVIDER_POST_REQUIRED',422);
+    }
+    if(c.proof_policy==='provider'&&!data.publicationId)throw new ApiError('PROVIDER_POST_REQUIRED',422);
     try {
-      const row=await one<any>('INSERT INTO submissions(campaign_id,clipper_id,asset_id,media_sha256,social_url) VALUES($1,$2,$3,$4,$5) RETURNING *',[p[1],user.user_id,asset.id,asset.sha256,data.socialUrl]);
+      const row=await one<any>('INSERT INTO submissions(campaign_id,clipper_id,asset_id,media_sha256,social_url,publication_id) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',[p[1],user.user_id,asset.id,asset.sha256,data.socialUrl,data.publicationId]);
       await audit(db,user.user_id,'submission.created','submission',row.id); return reply(row,201);
     } catch(e:any) {if(e.code==='23505') throw new ApiError('DUPLICATE_SUBMISSION',409); throw e;}
   }
@@ -224,6 +231,12 @@ async function handle(request:Request,path:string[],method:string):Promise<Respo
       const locked=await one<any>('SELECT * FROM submissions WHERE id=$1 FOR UPDATE',[p[1]],client);
       if(!['submitted','in_review'].includes(locked.state)) throw new ApiError('SUBMISSION_ALREADY_REVIEWED',409);
       if(data.decision==='approved') {
+        const openReport=await one("SELECT id FROM content_reports WHERE submission_id=$1 AND state='open' LIMIT 1",[locked.id],client);
+        if(openReport)throw new ApiError('CONTENT_REPORT_PENDING',409);
+        if(campaign.proof_policy==='provider'){
+          const proof=await one<any>("SELECT id FROM social_publications WHERE id=$1 AND user_id=$2 AND asset_id=$3 AND provider=ANY($4::text[]) AND status='published' AND post_id IS NOT NULL",[locked.publication_id,locked.clipper_id,locked.asset_id,campaign.target_platforms],client);
+          if(!proof)throw new ApiError('PROVIDER_POST_REQUIRED',409);
+        }
         const amount=BigInt(campaign.fixed_reward_lamports);
         if(amount<=0n) throw new ApiError('REWARD_NOT_CONFIGURED',409);
         const recipient=await one<{address:string}>('SELECT address FROM wallets WHERE user_id=$1',[locked.clipper_id],client);
@@ -247,6 +260,13 @@ async function handle(request:Request,path:string[],method:string):Promise<Respo
     const award=await one<any>("UPDATE reward_awards SET state='disputed',updated_at=now() WHERE id=$1 AND clipper_id=$2 AND state IN ('held','ready') RETURNING id",[p[1],user.user_id]);
     if(!award) throw new ApiError('REWARD_NOT_DISPUTABLE',409);
     await audit(db,user.user_id,'reward.disputed','reward_award',award.id,{reason:data.reason});return reply({ok:true});
+  }
+  if(method==='POST' && p[0]==='submissions' && p[2]==='report') {
+    const data=await body(request,z.object({reason:z.string().min(10).max(1000)}));
+    await rateLimit(user.user_id,'content-report',10,86400);
+    const submission=await one<{id:string}>('SELECT id FROM submissions WHERE id=$1',[p[1]]);if(!submission)throw new ApiError('NOT_FOUND',404);
+    const report=await one<{id:string}>("INSERT INTO content_reports(reporter_id,submission_id,reason) VALUES($1,$2,$3) ON CONFLICT(reporter_id,submission_id) DO UPDATE SET reason=EXCLUDED.reason RETURNING id",[user.user_id,p[1],data.reason]);
+    await audit(db,user.user_id,'content.reported','content_report',report!.id,{submissionId:p[1]});return reply({id:report!.id,status:'open'},201);
   }
   throw new ApiError('NOT_FOUND',404);
 }

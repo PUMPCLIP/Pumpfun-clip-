@@ -3,6 +3,7 @@ import {one,db} from '@/lib/db';
 import {mutation,ApiError,jsonError} from '@/lib/auth';
 import {tiktokToken,tiktokUploadUrl,tiktokConfigured,tiktokDirectEnabled} from '@/lib/tiktok';
 import {getMedia} from '@/lib/storage';
+import {rateLimit} from '@/lib/rate-limit';
 export const runtime='nodejs';
 const schema=z.object({assetId:z.string().uuid(),privacyLevel:z.enum(['PUBLIC_TO_EVERYONE','MUTUAL_FOLLOW_FRIENDS','FOLLOWER_OF_CREATOR','SELF_ONLY']),caption:z.string().max(2200),allowComment:z.boolean(),allowDuet:z.boolean(),allowStitch:z.boolean(),commercial:z.enum(['none','own','paid']),aiGenerated:z.boolean(),consent:z.literal(true)});
 export async function POST(request:Request){try{
@@ -11,6 +12,7 @@ export async function POST(request:Request){try{
  const asset=await one<any>("SELECT a.id,a.object_key,a.byte_size,j.start_seconds,j.end_seconds FROM media_assets a JOIN studio_jobs j ON j.output_asset_id=a.id WHERE a.id=$1 AND a.owner_id=$2 AND a.kind='clip' AND a.status='verified' AND a.mime='video/mp4'",[input.assetId,user.user_id]);
  if(!asset)throw new ApiError('STUDIO_MP4_REQUIRED',403);
  const existing=await one<any>("SELECT id,status,remote_ref,post_id FROM social_publications WHERE user_id=$1 AND asset_id=$2 AND provider='tiktok'",[user.user_id,asset.id]);if(existing)return Response.json(existing);
+ await rateLimit(user.user_id,'tiktok-direct',10,86400);
  const token=await tiktokToken(user.user_id,'video.publish');
  // Check the account's current options immediately before posting.
  const infoResponse=await fetch('https://open.tiktokapis.com/v2/post/publish/creator_info/query/',{method:'POST',headers:{authorization:'Bearer '+token,'content-type':'application/json; charset=UTF-8'},signal:AbortSignal.timeout(15000)});

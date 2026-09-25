@@ -3,12 +3,14 @@ import {one,db} from '@/lib/db';
 import {mutation,ApiError,jsonError} from '@/lib/auth';
 import {getMedia} from '@/lib/storage';
 import {xAccessToken,xApi,xConfigured} from '@/lib/x-social';
+import {rateLimit} from '@/lib/rate-limit';
 export const runtime='nodejs';
 export async function POST(request:Request){try{
  const user=await mutation(request);if(!xConfigured())throw new ApiError('X_NOT_CONFIGURED',503);
  const parsed=z.object({assetId:z.string().uuid(),text:z.string().min(1).max(280),consent:z.literal(true)}).safeParse(await request.json().catch(()=>null));if(!parsed.success)throw new ApiError('INVALID_INPUT');
  const asset=await one<any>("SELECT a.id,a.object_key,a.byte_size FROM media_assets a JOIN studio_jobs j ON j.output_asset_id=a.id WHERE a.id=$1 AND a.owner_id=$2 AND a.kind='clip' AND a.status='verified' AND a.mime='video/mp4'",[parsed.data.assetId,user.user_id]);
  if(!asset)throw new ApiError('STUDIO_MP4_REQUIRED',403);
+ await rateLimit(user.user_id,'x-video',10,86400);
  const token=await xAccessToken(user.user_id);
  const reserved=await one<any>("INSERT INTO social_publications(user_id,asset_id,provider,caption) VALUES($1,$2,'x',$3) ON CONFLICT(user_id,asset_id,provider) DO NOTHING RETURNING id",[user.user_id,asset.id,parsed.data.text]);
  if(!reserved)return Response.json(await one("SELECT id,status,remote_ref,post_id FROM social_publications WHERE user_id=$1 AND asset_id=$2 AND provider='x'",[user.user_id,asset.id]));

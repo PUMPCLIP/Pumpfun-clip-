@@ -7,6 +7,7 @@ import {db,one,audit} from '@/lib/db';
 import {mutation,ApiError,jsonError} from '@/lib/auth';
 import {config} from '@/lib/config';
 import {gate} from '@/lib/access';
+import {rateLimit} from '@/lib/rate-limit';
 export const runtime='nodejs';
 const storage=path.resolve(process.cwd(),'data/private');
 function probe(file:string):Promise<{streams:{codec_type:string}[],format:{duration:string}}> {
@@ -29,6 +30,7 @@ export async function POST(request:Request) {
     if(kind!=='source' && kind!=='clip') throw new ApiError('INVALID_MEDIA_KIND');
     if(kind==='source' && (form.get('rightsDeclared')!=='true' || !user.roles.includes('streamer'))) throw new ApiError('SOURCE_RIGHTS_REQUIRED',422);
     await gate(user.user_id,kind==='source'?'streamer':'clipper');
+    await rateLimit(user.user_id,'media-upload',12,3600);
     await mkdir(storage,{recursive:true});
     const key=crypto.randomUUID()+'.bin', location=path.join(storage,key), bytes=Buffer.from(await file.arrayBuffer());
     await writeFile(location,bytes,{flag:'wx',mode:0o600});

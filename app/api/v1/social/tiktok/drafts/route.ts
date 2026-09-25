@@ -3,6 +3,7 @@ import {one,db} from '@/lib/db';
 import {mutation,ApiError,jsonError} from '@/lib/auth';
 import {getMedia} from '@/lib/storage';
 import {tiktokToken,tiktokUploadUrl,tiktokConfigured} from '@/lib/tiktok';
+import {rateLimit} from '@/lib/rate-limit';
 export const runtime='nodejs';
 export async function POST(request:Request){
  try{
@@ -10,6 +11,7 @@ export async function POST(request:Request){
   const parsed=z.object({assetId:z.string().uuid()}).safeParse(await request.json().catch(()=>null));if(!parsed.success)throw new ApiError('INVALID_INPUT');
   const asset=await one<any>("SELECT id,object_key,byte_size FROM media_assets WHERE id=$1 AND owner_id=$2 AND kind='clip' AND status='verified' AND mime='video/mp4'",[parsed.data.assetId,user.user_id]);
   if(!asset)throw new ApiError('MP4_ASSET_REQUIRED',403);
+  await rateLimit(user.user_id,'tiktok-draft',10,86400);
   const reserved=await one<any>('INSERT INTO tiktok_drafts(user_id,asset_id) VALUES($1,$2) ON CONFLICT(user_id,asset_id) DO NOTHING RETURNING id,status',[user.user_id,asset.id]);
   if(!reserved){const existing=await one<any>('SELECT id,status,publish_id,fail_reason FROM tiktok_drafts WHERE user_id=$1 AND asset_id=$2',[user.user_id,asset.id]);return Response.json(existing,{status:200});}
   try{

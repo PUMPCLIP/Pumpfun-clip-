@@ -3,11 +3,13 @@ import {one,db} from '@/lib/db';
 import {mutation,ApiError,jsonError} from '@/lib/auth';
 import {instagramConfigured,instagramPages,metaVersion} from '@/lib/instagram';
 import {temporaryMediaUrl} from '@/lib/storage';
+import {rateLimit} from '@/lib/rate-limit';
 export const runtime='nodejs';
 export async function POST(request:Request){try{
  const user=await mutation(request);if(!instagramConfigured())throw new ApiError('INSTAGRAM_NOT_CONFIGURED',503);
  const parsed=z.object({assetId:z.string().uuid(),pageId:z.string().regex(/^[0-9]+$/),caption:z.string().max(2200),shareToFeed:z.boolean(),consent:z.literal(true)}).safeParse(await request.json().catch(()=>null));if(!parsed.success)throw new ApiError('INVALID_INPUT');
  const asset=await one<any>("SELECT id,object_key FROM media_assets WHERE id=$1 AND owner_id=$2 AND kind='clip' AND status='verified' AND mime='video/mp4'",[parsed.data.assetId,user.user_id]);if(!asset)throw new ApiError('MP4_ASSET_REQUIRED',403);
+ await rateLimit(user.user_id,'instagram-reel',10,86400);
  const pages=await instagramPages(user.user_id),page=pages.find(p=>p.pageId===parsed.data.pageId);if(!page)throw new ApiError('INSTAGRAM_PAGE_REQUIRED',403);
  const reserved=await one<any>("INSERT INTO social_publications(user_id,asset_id,provider,caption,details) VALUES($1,$2,'instagram',$3,$4) ON CONFLICT(user_id,asset_id,provider) DO NOTHING RETURNING id",[user.user_id,asset.id,parsed.data.caption,JSON.stringify({pageId:page.pageId,igId:page.igId})]);
  if(!reserved)return Response.json(await one("SELECT id,status,remote_ref,post_id FROM social_publications WHERE user_id=$1 AND asset_id=$2 AND provider='instagram'",[user.user_id,asset.id]));

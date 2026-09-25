@@ -8,10 +8,10 @@ Token issuance is deliberately an operator command, never a public API. Set `SOL
 
 ```sh
 node scripts/token.mjs create --keypair /secure/issuer.json
-node scripts/token.mjs create --keypair /secure/issuer.json --execute
+node scripts/token.mjs create --keypair /secure/issuer.json --policy config/token-policy.json --execute
 ```
 
-The real mint address is printed only after confirmation. Record it, verify it independently, then configure `PUMPCLIP_MINT` and matching `PUMPCLIP_DECIMALS`. Distribution accepts JSON allocations such as `[{"address":"recipientPublicKey","amount":"100.0"}]`. Preview and review every allocation, then run `node scripts/token.mjs distribute --keypair /secure/issuer.json --mint ADDRESS --allocations /secure/allocations.json --execute`. It prints each confirmed signature. An interrupted distribution must be reconciled on chain before retry because replaying the entire list would duplicate mints. Protect issuer authority with offline custody. The script neither creates a Pump.fun token launch nor performs mainnet issuance; supply, vesting, authority policy, metadata, legal terms, ownership and final tokenomics require founder approval.
+Before either execute command, copy `config/token-policy.example.json` to `config/token-policy.json`, fill the founder-approved maximum supply, authority and treasury addresses, holder thresholds, fees and reviewer, then run `npm run token:policy -- config/token-policy.json`. The example intentionally fails validation. The real mint address is printed only after confirmation. Record it, verify it independently, then configure `PUMPCLIP_MINT` and matching `PUMPCLIP_DECIMALS`. Distribution accepts JSON allocations such as `[{"address":"recipientPublicKey","amount":"100.0"}]`. Preview and review every allocation, then run `node scripts/token.mjs distribute --keypair /secure/issuer.json --mint ADDRESS --allocations /secure/allocations.json --policy config/token-policy.json --execute`. The operator script verifies mint authority, decimals and the approved supply cap, then prints each confirmed signature. An interrupted distribution must be reconciled on chain before retry because replaying the entire list would duplicate mints. Protect issuer authority with offline custody. The script neither creates a Pump.fun token launch nor performs mainnet issuance; vesting, authority policy, metadata, legal terms, ownership and final tokenomics require founder approval. A file policy is not a production issuance audit.
 
 ## SOL reward operations
 
@@ -44,8 +44,24 @@ X uses OAuth2 PKCE with `tweet.read`, `tweet.write`, `users.read`, `media.write`
 
 All provider tokens are encrypted with `SOCIAL_TOKEN_KEY`. One publication per rendered asset and provider is reserved in the database to suppress duplicate submissions. Failed reservations before provider initiation may be retried; uncertain provider operations are deliberately not retried automatically. Social post URLs and viewing metrics are not verified for campaign rewards. A submitted post URL is user provided and not proof of identity, ownership or views.
 
+The account settings screen lists connected providers and can delete their locally stored tokens. Disconnecting does not remove posts or revoke the provider's grant; users must revoke PUMPCLIP in the provider's own account settings as well. Campaigns can select manual review or require a provider-confirmed post. Provider proof links the same clip asset, clipper, target platform and recorded published ID; it is still not an independent proof of live views or that the post remains online. Existing and default campaigns use manual review. An open content report blocks reward approval until an operator inspects and resolves it with `npm run reports -- list` and `npm run reports -- resolve REPORT_ID reviewed|dismissed`.
+
+The studio offers classic, bold and signal caption presets and burns the selected style into the MP4. Database-backed per-account limits apply to uploads, renders, social posting and reports. They do not replace IP-based edge limits or a media malware scanner.
+
 ## Staging infrastructure
 
 Provision an HTTPS domain, managed PostgreSQL 16 with backups, a private S3-compatible bucket, dedicated Solana RPC, Google OAuth keys, AI provider key and token encryption key. Set `APP_URL` to the exact HTTPS origin and `DATABASE_URL` to the database service. Copy `.env.example` to `.env.deploy` and fill every required value without committing it. Run `docker compose --env-file .env.deploy -f compose.deploy.yml up --build -d`. It runs migrations, the web app, render worker, AI worker and a PostgreSQL container, exposing port 3000 only on loopback. Add a TLS reverse proxy, durable database backups, bucket lifecycle/retention, logs/metrics/alerts, secret rotation, media scanning and a restore test before public traffic. The compose file is a staging template and is not a provisioned production deployment.
 
 Run `npm run readiness` in staging to check configuration, schema, RPC cluster, bucket and FFmpeg. This is a preflight check, not an end-to-end test. Use distinct live Google accounts, separate wallets and real platform approvals for the manual staging journey; those credentials are not present in this repository.
+
+### External managed PostgreSQL and HTTPS staging
+
+`compose.managed.yml` runs migrations, the app, render and AI workers against the managed `DATABASE_URL`, with Caddy terminating HTTPS. It does **not** order a domain, create a database or bucket, configure DNS, or provide backups. Purchase or use a domain you control, set an `A` record for a staging subdomain to the host's public IPv4 (and `AAAA` only if IPv6 reaches the host), and allow inbound ports 80 and 443. Caddy obtains and renews its certificate when DNS reaches the host. Set `STAGING_DOMAIN=staging.your-domain.example`, `APP_URL=https://staging.your-domain.example`, and a managed PostgreSQL URL using `sslmode=require` or stricter. Obtain provider-specific CA configuration when using `verify-full`; create managed backup schedules and test restoration in the provider console. Configure the bucket, provider redirect URIs and secrets, then run:
+
+```sh
+docker compose --env-file .env.deploy -f compose.managed.yml up --build -d
+docker compose --env-file .env.deploy -f compose.managed.yml exec web npm run readiness
+APP_URL=https://staging.your-domain.example npm run smoke
+```
+
+The `npm run smoke` check verifies HTTPS health, public campaign shape and a protected route without an account. It does not test wallet, provider posting, payouts or backups. Do those manually with consenting pilot accounts. Do not paste or commit `.env.deploy`, private keys or credentials.

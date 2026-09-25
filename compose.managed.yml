@@ -1,0 +1,54 @@
+# Staging profile: external managed PostgreSQL, private media bucket and HTTPS domain.
+# Run: docker compose --env-file .env.deploy -f compose.managed.yml up --build -d
+services:
+  migrate:
+    build: .
+    command: ["npm","run","db:migrate"]
+    env_file: .env.deploy
+    restart: "no"
+  web:
+    build: .
+    restart: unless-stopped
+    env_file: .env.deploy
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+  render-worker:
+    build: .
+    command: ["npm","run","worker"]
+    restart: unless-stopped
+    env_file: .env.deploy
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+  ai-worker:
+    build: .
+    command: ["npm","run","worker:ai"]
+    restart: unless-stopped
+    env_file: .env.deploy
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    environment:
+      STAGING_DOMAIN: ${STAGING_DOMAIN:?set a staging domain}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile.staging:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+volumes:
+  caddy_data:
+  caddy_config:

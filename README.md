@@ -27,6 +27,8 @@ npm run build
 
 The schema test uses an in-memory PostgreSQL engine. Full browser and chain tests require a configured devnet mint, wallets, funded treasury, PostgreSQL and Google OAuth. Their absence is a release blocker, not a passing test.
 
+For an externally provisioned HTTPS host, managed PostgreSQL and private bucket, use [the managed staging profile](docs/integrations.md#external-managed-postgresql-and-https-staging). A token policy example is in `config/token-policy.example.json`; execute commands require a reviewed filled policy. Campaigns can require a provider-confirmed post for rewards, while manual review remains available and is explicitly unverified.
+
 ## Money and custody
 
 Set the token treasury to a wallet with an associated token account for the configured mint. The browser constructs transfers from the linked wallet; the server verifies confirmed transfers, amounts, owner balance deltas and unique signatures before advancing state. The SOL custody address is **platform controlled** and shared across campaigns in this development build. A devnet-only operator payout command exists with a 48-hour hold and ledger reconciliation, but there is no on-chain escrow, automated dispute resolution or refund process. Never accept public money against this build.

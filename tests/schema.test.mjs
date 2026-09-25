@@ -6,7 +6,7 @@ import {PGlite} from '@electric-sql/pglite';
 test('database rejects wallet reuse, duplicate clip hashes and overreserved escrow',async()=>{
   const db=new PGlite();
   try {
-    for(const name of ['001_core.sql','002_studio.sql','003_rewards.sql','004_ai.sql','005_social.sql','006_tiktok.sql','007_youtube_uploads.sql','008_publications.sql']) {
+    for(const name of ['001_core.sql','002_studio.sql','003_rewards.sql','004_ai.sql','005_social.sql','006_tiktok.sql','007_youtube_uploads.sql','008_publications.sql','009_proof_and_operations.sql']) {
       const sql=readFileSync('db/migrations/'+name,'utf8').replace('CREATE EXTENSION IF NOT EXISTS pgcrypto;','');
       await db.exec(sql);
     }
@@ -28,7 +28,14 @@ test('database rejects wallet reuse, duplicate clip hashes and overreserved escr
     await assert.rejects(db.query('INSERT INTO youtube_uploads(user_id,asset_id,byte_size) VALUES($1,$2,100)',[u2,asset]));
     await db.query("INSERT INTO social_publications(user_id,asset_id,provider) VALUES($1,$2,'x')",[u2,asset]);
     await assert.rejects(db.query("INSERT INTO social_publications(user_id,asset_id,provider) VALUES($1,$2,'x')",[u2,asset]));
-    for(const name of ['008_publications.sql','007_youtube_uploads.sql','006_tiktok.sql','005_social.sql','004_ai.sql','003_rewards.sql','002_studio.sql','001_core.sql']) await db.exec(readFileSync('db/migrations/down/'+name,'utf8'));
+    await db.query("UPDATE campaigns SET proof_policy='provider' WHERE id=$1",[c]);
+    await assert.rejects(db.query("UPDATE campaigns SET proof_policy='unreviewed' WHERE id=$1",[c]));
+    const submission=(await db.query('SELECT id FROM submissions WHERE campaign_id=$1 LIMIT 1',[c])).rows[0].id;
+    await assert.rejects(db.query('UPDATE submissions SET publication_id=$2 WHERE id=$1',[submission,'00000000-0000-0000-0000-000000000001']));
+    await db.query('INSERT INTO content_reports(reporter_id,submission_id,reason) VALUES($1,$2,$3)',[u1,submission,'Potential stolen content']);
+    await assert.rejects(db.query('INSERT INTO content_reports(reporter_id,submission_id,reason) VALUES($1,$2,$3)',[u1,submission,'Duplicate report']));
+    await assert.rejects(db.query('INSERT INTO user_rate_limits(user_id,action,request_count) VALUES($1,$2,0)',[u1,'upload']));
+    for(const name of ['009_proof_and_operations.sql','008_publications.sql','007_youtube_uploads.sql','006_tiktok.sql','005_social.sql','004_ai.sql','003_rewards.sql','002_studio.sql','001_core.sql']) await db.exec(readFileSync('db/migrations/down/'+name,'utf8'));
     const tables=await db.query("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename IN ('users','campaigns','studio_jobs')");
     assert.equal(tables.rows.length,0);
   } finally {await db.close();}

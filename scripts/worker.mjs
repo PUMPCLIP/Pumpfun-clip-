@@ -10,14 +10,15 @@ const media=process.env.MEDIA_BUCKET?new S3Client({region:process.env.MEDIA_REGI
 async function sourceFile(key){if(!media)return path.join(storage,key);const result=await media.send(new GetObjectCommand({Bucket:process.env.MEDIA_BUCKET,Key:key}));const temp=path.join(storage,crypto.randomUUID()+'.source');await writeFile(temp,Buffer.from(await result.Body.transformToByteArray()));return temp;}
 await client.connect();
 const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-async function render(input,output,start,duration,caption) {
+async function render(input,output,start,duration,caption,captionStyle='classic') {
   let subtitleFilter='';
   if(caption.trim()) {
     const subtitle=output+'.srt';
     const clean=caption.replace(/[\r\n<>]/g,' ').slice(0,200);
     const timestamp=seconds=>{const ms=Math.floor(seconds*1000);return `${String(Math.floor(ms/3600000)).padStart(2,'0')}:${String(Math.floor(ms/60000)%60).padStart(2,'0')}:${String(Math.floor(ms/1000)%60).padStart(2,'0')},${String(ms%1000).padStart(3,'0')}`;};
     await writeFile(subtitle,`1\n00:00:00,000 --> ${timestamp(duration)}\n${clean}\n`);
-    subtitleFilter=`,subtitles=${subtitle}`;
+    const styles={classic:'',bold:':force_style=FontSize=25\\,Outline=3\\,Shadow=1\\,Alignment=2\\,MarginV=140',signal:':force_style=FontSize=25\\,PrimaryColour=&H0000EFFF\\,Outline=3\\,Shadow=1\\,Alignment=2\\,MarginV=140'};
+    subtitleFilter=`,subtitles=${subtitle}${styles[captionStyle]||''}`;
   }
   return new Promise((resolve,reject)=>{
     const args=['-hide_banner','-loglevel','error','-y','-ss',String(start),'-i',input,'-t',String(duration),
@@ -44,7 +45,7 @@ async function tick() {
   try {
     await mkdir(storage,{recursive:true});
     const source=await sourceFile(job.object_key);
-    try {await render(source,output,Number(job.start_seconds),Number(job.end_seconds)-Number(job.start_seconds),job.caption);} finally {if(media)await (await import('node:fs/promises')).unlink(source).catch(()=>{});}
+    try {await render(source,output,Number(job.start_seconds),Number(job.end_seconds)-Number(job.start_seconds),job.caption,job.caption_style);} finally {if(media)await (await import('node:fs/promises')).unlink(source).catch(()=>{});}
     const bytes=await readFile(output),sha=crypto.createHash('sha256').update(bytes).digest('hex');
     if(media)await media.send(new PutObjectCommand({Bucket:process.env.MEDIA_BUCKET,Key:key,Body:bytes,ContentType:'video/mp4'}));
     await client.query('BEGIN');

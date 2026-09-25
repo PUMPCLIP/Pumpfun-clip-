@@ -1,0 +1,15 @@
+{
+  "network": "devnet",
+  "decimals": 6,
+  "maximumSupplyTokens": "",
+  "mintAuthorityAddress": "",
+  "tokenTreasuryAddress": "",
+  "solTreasuryAddress": "",
+  "streamerMinimumTokens": "",
+  "clipperMinimumTokens": "",
+  "streamerFeeTokens": "",
+  "clipperFeeMinimumTokens": "",
+  "clipperFeeMaximumTokens": "",
+  "rewardModel": "fixed-sol-after-manual-review",
+  "distributionApprovedBy": ""
+}

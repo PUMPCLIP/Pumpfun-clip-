@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import {Connection,Keypair,PublicKey} from '@solana/web3.js';
 import {createMint,getOrCreateAssociatedTokenAccount,mintTo,getMint} from '@solana/spl-token';
+import {readPolicy} from '../lib/token-policy.mjs';
 const [command,...args]=process.argv.slice(2);
 const value=(name)=>{const i=args.indexOf('--'+name);return i<0?undefined:args[i+1];};
 const execute=args.includes('--execute');
@@ -12,10 +13,14 @@ if(!signerPath) throw new Error('--keypair is required');
 const stat=fs.statSync(signerPath);
 if((stat.mode&0o077)!==0) throw new Error('Keypair must have permissions 0600');
 const signer=Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(signerPath,'utf8'))));
+const approved=execute?readPolicy(value('policy')):null;
 const connection=new Connection(rpc,'confirmed');
 if(await connection.getGenesisHash()!=='GH7ome3EiwEr7tu9JuTh2dpYWBJK3z69Xm1ZE3MEE6JC')throw new Error('RPC is not Solana devnet');
 const decimals=Number(process.env.PUMPCLIP_DECIMALS||6);
 if(!Number.isInteger(decimals)||decimals<0||decimals>9) throw new Error('Invalid decimals');
+if(approved&&(approved.policy.decimals!==decimals||approved.policy.mintAuthorityAddress!==signer.publicKey.toBase58()))throw new Error('Token policy mint authority or decimals mismatch');
+if(approved&&process.env.TOKEN_TREASURY&&approved.policy.tokenTreasuryAddress!==process.env.TOKEN_TREASURY)throw new Error('Token treasury differs from policy');
+if(approved&&process.env.SOL_TREASURY&&approved.policy.solTreasuryAddress!==process.env.SOL_TREASURY)throw new Error('SOL treasury differs from policy');
 const decimalAmount=s=>{if(typeof s!=='string'||!new RegExp(`^(0|[1-9][0-9]*)(\\.[0-9]{1,${decimals}})?$`).test(s)) throw new Error('Invalid amount '+s);const [whole,fraction='']=s.split('.');return BigInt(whole)*10n**BigInt(decimals)+BigInt(fraction.padEnd(decimals,'0'));};
 if(command==='create') {
   if(!execute) {console.log(JSON.stringify({operation:'create devnet SPL mint',payer:signer.publicKey.toBase58(),decimals,mintAuthority:signer.publicKey.toBase58(),freezeAuthority:null,mode:'dry-run'}));process.exit(0);}
@@ -30,6 +35,7 @@ if(command==='create') {
   const recipients=JSON.parse(fs.readFileSync(file,'utf8'));
   if(!Array.isArray(recipients)||!recipients.length||recipients.length>1000) throw new Error('Expected 1–1000 allocations');
   const seen=new Set(),allocations=recipients.map(({address,amount})=>{const owner=new PublicKey(address);if(seen.has(address)) throw new Error('Duplicate recipient '+address);seen.add(address);const raw=decimalAmount(amount);if(raw<=0n||raw>BigInt('18446744073709551615')) throw new Error('Invalid allocation');return {address,amount,raw,owner};});
+  if(approved&&BigInt(info.supply)+allocations.reduce((n,a)=>n+a.raw,0n)>approved.amount.maximumSupplyTokens)throw new Error('Distribution exceeds approved maximum supply');
   console.log(JSON.stringify({mint:mintAddress,network:'devnet',mode:execute?'execute':'dry-run',allocations:allocations.map(({address,amount})=>({address,amount})),totalRaw:String(allocations.reduce((n,a)=>n+a.raw,0n))}));
   if(!execute) process.exit(0);
   // Each confirmed signature is printed immediately so an interrupted run can be reconciled before rerunning.

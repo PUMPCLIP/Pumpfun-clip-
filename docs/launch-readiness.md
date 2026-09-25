@@ -9,5 +9,8 @@
 3. Provision HTTPS, managed PostgreSQL, private object storage, dedicated RPC, OAuth and AI credentials, monitoring, backups and disaster recovery. Validate media scanning, rate limits, abuse controls, session hardening and social upload retry behavior.
 4. Test Google login, real wallet signing and token gate, campaign lifecycle, AI analysis, clip export, YouTube private upload and payout in a production-like staging environment. Test keyboard, mobile and recovery scenarios.
 5. Obtain TikTok `video.upload` approval and `video.publish` audit, Meta Instagram publishing review, and X project media and post access. Verify each with consenting live accounts, inspect real posts and failure recovery, then enable the flows for users. Verify social metrics before tying rewards to performance. Publish clear terms, licensing, privacy and payout policies.
+6. Choose and document approved token supply, thresholds, authorities and allocations in a real token policy file. Test it on devnet. Use provider proof campaigns for provider-authenticated posts; manually reviewed campaigns are not independent evidence of views. Triage open content reports before approval.
+
+The managed database and HTTPS staging Compose profile is configuration only. No domain, managed PostgreSQL instance, storage bucket or provider account has been purchased or provisioned from this repository.
 
 Mainnet money endpoints and operator scripts remain disabled by code. See [integration runbook](integrations.md).

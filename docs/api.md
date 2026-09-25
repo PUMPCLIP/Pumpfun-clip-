@@ -30,3 +30,16 @@ All mutation routes require same-origin session and CSRF. AI requests require ho
 - `POST /api/v1/social/tiktok/drafts` — upload an owned MP4 to the TikTok inbox; body `{assetId}`. This does not publish a post.
 - `GET /api/v1/social/tiktok/drafts/:id` — fetch provider status and creator inbox/publish state.
 - `GET /api/v1/social/youtube/uploads/:id` — check an interrupted resumable session before retrying; never starts a duplicate upload.
+
+## Publishing and proof
+
+- `GET /api/v1/social/connections` — list connected providers without tokens.
+- `DELETE /api/v1/social/connections/:provider` — remove locally stored OAuth token and metadata (requires session, origin and CSRF). Revoke the provider grant separately in its account settings.
+- `GET /api/v1/social/tiktok/availability` — whether direct publishing has been enabled after approval and testing.
+- `GET /api/v1/social/tiktok/creator`, `POST /api/v1/social/tiktok/publish`, `GET /api/v1/social/tiktok/publish/:id` — creator settings, direct publishing and status.
+- `GET /api/v1/social/instagram/accounts`, `POST /api/v1/social/instagram/reels`, `GET|POST /api/v1/social/instagram/reels/:id` — Page selection, Reel preparation/status and explicit publish.
+- `POST /api/v1/social/x/videos`, `GET|POST /api/v1/social/x/videos/:id` — video upload/status and explicit X post.
+- `PATCH /api/v1/campaigns/:id` accepts `proofPolicy: "manual"|"provider"` while draft. `POST /api/v1/campaigns/:id/submissions` accepts optional `publicationId`. When proof is required, publication must belong to the same user and clip, target the campaign's platform and be provider-confirmed as published. Reward approval checks it again.
+- `POST /api/v1/submissions/:id/report` accepts `{reason}` and blocks reward approval while a report is open. The operator resolves reports with `npm run reports`.
+
+Provider evidence does not verify views, current post visibility or ongoing ownership. All mutations require session and CSRF protection.
