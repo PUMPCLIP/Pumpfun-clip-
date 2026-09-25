@@ -2,7 +2,7 @@
 
 Development implementation of a streamer campaign marketplace. Streamers publish licensed source footage and fund campaigns; token eligible clippers join, render or upload clips, and submit them for review. PUMPCLIP is used for eligibility and fees. SOL is the separately tracked campaign pool.
 
-**This is a development build, not a mainnet launch.** The code includes devnet token issuance commands, a guarded award/payout ledger, AI transcription with timed suggestions, private YouTube uploads, wallet connection and a private media storage adapter. None is configured or externally verified in this repository. Read [feature status](docs/feature-status.md), [launch readiness](docs/launch-readiness.md) and the [integration runbook](docs/integrations.md).
+**This is a development build, not a mainnet launch.** The code includes devnet token issuance commands, a guarded award/payout ledger, AI transcription with timed suggestions, private YouTube and TikTok draft uploads, wallet connection and a private media storage adapter. None is configured or externally verified in this repository. Read [feature status](docs/feature-status.md), [launch readiness](docs/launch-readiness.md) and the [integration runbook](docs/integrations.md).
 
 ## Local setup
 

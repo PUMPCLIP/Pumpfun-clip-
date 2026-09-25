@@ -24,3 +24,9 @@ Money and studio POSTs require `idempotency-key`. All private mutations require 
 - `GET /api/health` — PostgreSQL liveness (no secrets in response).
 
 All mutation routes require same-origin session and CSRF. AI requests require holder access and membership. Award release and payout have **no public API**; devnet operator commands are described in [the integration runbook](integrations.md).
+
+- `GET /api/v1/social/tiktok` — start TikTok Login Kit consent for `video.upload`.
+- `GET /api/v1/social/tiktok/callback` — authorization callback.
+- `POST /api/v1/social/tiktok/drafts` — upload an owned MP4 to the TikTok inbox; body `{assetId}`. This does not publish a post.
+- `GET /api/v1/social/tiktok/drafts/:id` — fetch provider status and creator inbox/publish state.
+- `GET /api/v1/social/youtube/uploads/:id` — check an interrupted resumable session before retrying; never starts a duplicate upload.

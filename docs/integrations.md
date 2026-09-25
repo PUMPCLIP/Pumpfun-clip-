@@ -34,9 +34,9 @@ Configure `OPENAI_API_KEY`, run `npm run worker:ai`, and let an eligible campaig
 
 ## Social publishing
 
-The separate **YouTube upload** OAuth flow requests `youtube.upload`, uses PKCE, stores an AES-256-GCM encrypted refresh token, and uploads a rendered clip as **private**. Configure Google OAuth redirect URI `${APP_URL}/api/v1/social/youtube/callback` in addition to the sign-in callback; set `SOCIAL_TOKEN_KEY` to 32 random bytes in base64. YouTube may restrict uploads from unverified API projects to private visibility.
+The separate **YouTube upload** OAuth flow requests `youtube.upload`, uses PKCE, stores an AES-256-GCM encrypted refresh token, and uploads a rendered clip as **private**. A database reservation prevents repeated uploads of the same asset. Interrupted sessions can be checked without starting a second upload; automatic resume of incomplete bytes is not yet implemented. Configure Google OAuth redirect URI `${APP_URL}/api/v1/social/youtube/callback` in addition to the sign-in callback; set `SOCIAL_TOKEN_KEY` to 32 random bytes in base64. YouTube may restrict uploads from unverified API projects to private visibility.
 
-TikTok direct posting requires `video.publish` approval and audit; Instagram and X also require their respective app reviews, account permissions and publishing flows. A submitted post URL is user provided and not proof of identity, ownership or views. These APIs, OAuth connections, metrics and verification are not integrated. Do not advertise them as connected.
+TikTok draft upload requests `video.upload` via Login Kit at `${APP_URL}/api/v1/social/tiktok/callback`. Configure `TIKTOK_CLIENT_KEY` and `TIKTOK_CLIENT_SECRET`, register the redirect URI and obtain approved upload scope. The studio uploads an MP4 in sequential chunks, records the `publish_id` before transfer, and queries the status endpoint. The creator must open the TikTok inbox notification to edit and publish; a draft is not a public post. An uncertain upload blocks reinitialization for that asset until its provider status is inspected. Direct posting needs separate `video.publish` permission and audit. Instagram and X OAuth, publishing, metrics and verification are not integrated. A submitted post URL is user provided and not proof of identity, ownership or views. Do not advertise those as connected.
 
 ## Staging infrastructure
 

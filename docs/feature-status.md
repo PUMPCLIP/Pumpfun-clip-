@@ -9,8 +9,9 @@
 | Reward award ledger, 48-hour hold, dispute and payout | Devnet operator flow | No real payout run; shared custody, manual dispute review and no refund flow |
 | Manual studio and FFmpeg export | Implemented | Full browser journey and production media scan pending |
 | AI transcription and suggested cuts | Worker and UI implemented | Provider key, sample video and cost verification pending; heuristic ranking |
-| YouTube private upload | OAuth and resumable upload implemented | Credentials, YouTube project/channel test and duplicate-upload recovery pending |
-| TikTok, Instagram and X publishing/analytics | Not implemented | Developer approvals, OAuth and platform APIs needed |
+| YouTube private upload | OAuth, upload reservation and interrupted session status implemented | Credentials, channel test and resumable transfer testing pending |
+| TikTok draft upload | OAuth, chunk upload, inbox/status flow implemented | Developer app `video.upload` approval, real account and provider test pending; user publishes in TikTok |
+| TikTok direct post, Instagram and X publishing/analytics | Not implemented | Developer approvals and platform APIs needed |
 | Private S3-compatible media and staging containers | Integration/template implemented | No bucket, HTTPS domain, managed DB, monitoring or backups provisioned |
 | Live-account end-to-end tests | Not run | Requires separate Google, wallet, provider, custody and social accounts |
 
