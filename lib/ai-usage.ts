@@ -1,12 +1,12 @@
 import {db,one,tx} from './db';
 import {ApiError} from './auth';
 
-export const AI_UNIT_COSTS={highlight_analysis:1,openclip_clip:5} as const;
+export const AI_UNIT_COSTS={highlight_analysis:1,native_clip:5} as const;
 export type AiAction=keyof typeof AI_UNIT_COSTS;
 export async function reserveAiUnits(userId:string,action:AiAction,key:string,metadata:object={}){
   return tx(async c=>{
     const existing=await one<any>('SELECT * FROM ai_usage_ledger WHERE user_id=$1 AND idempotency_key=$2',[userId,key],c);
-    if(existing) return existing;
+    if(existing){if(existing.action!==action)throw new ApiError('IDEMPOTENCY_CONFLICT',409,'This idempotency key was already used for a different AI action.');return existing;}
     const units=AI_UNIT_COSTS[action];
     await c.query('INSERT INTO ai_usage_accounts(user_id) VALUES($1) ON CONFLICT(user_id) DO NOTHING',[userId]);
     const account=await one<any>('SELECT * FROM ai_usage_accounts WHERE user_id=$1 FOR UPDATE',[userId],c);

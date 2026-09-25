@@ -1,4 +1,4 @@
--- Discovery, creator reputation, provider clip jobs, and metered AI usage.
+-- Discovery, creator reputation, native clip jobs, and metered AI usage.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin boolean NOT NULL DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS clip_metrics (
@@ -53,8 +53,7 @@ CREATE TABLE IF NOT EXISTS ai_clip_requests (
   user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   campaign_id uuid REFERENCES campaigns(id) ON DELETE SET NULL,
   source_asset_id uuid NOT NULL REFERENCES media_assets(id),
-  provider text NOT NULL DEFAULT 'openclip',
-  provider_job_id text,
+  engine text NOT NULL DEFAULT 'native',
   instructions text NOT NULL DEFAULT '',
   aspect_ratio text NOT NULL DEFAULT '9:16' CHECK(aspect_ratio IN ('9:16','1:1','16:9')),
   status text NOT NULL DEFAULT 'queued' CHECK(status IN ('queued','processing','succeeded','failed')),
@@ -65,4 +64,3 @@ CREATE TABLE IF NOT EXISTS ai_clip_requests (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS ai_clip_requests_user ON ai_clip_requests(user_id,created_at DESC);
-CREATE UNIQUE INDEX IF NOT EXISTS ai_clip_requests_provider_job ON ai_clip_requests(provider,provider_job_id) WHERE provider_job_id IS NOT NULL;

@@ -62,3 +62,5 @@
 .social-fields>.render-button,.social-fields>.download-button{width:auto;justify-self:start;min-width:13rem}
 .social-account,.social-status{border-radius:4px}
 @media(max-width:740px){.social-header{align-items:stretch;flex-direction:column;gap:1rem}.social-tabs{width:100%}.social-tabs button{min-width:0}.social-fields>.render-button,.social-fields>.download-button{width:100%}}
+
+.source-rights-check{display:flex;flex-direction:row;align-items:center;gap:.65rem;margin:.6rem 0;color:#506b56;font-size:.75rem;line-height:1.4}.source-rights-check input{width:1rem;height:1rem;flex:none;accent-color:#327b48}

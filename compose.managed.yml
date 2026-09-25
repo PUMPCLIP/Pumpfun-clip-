@@ -34,6 +34,15 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+  native-video-worker:
+    build: .
+    command: ["npm","run","worker:native"]
+    restart: unless-stopped
+    stop_grace_period: 2m
+    env_file: .env.deploy
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
   caddy:
     image: caddy:2
     restart: unless-stopped

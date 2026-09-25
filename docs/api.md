@@ -49,7 +49,7 @@ Provider evidence does not verify views, current post visibility or ongoing owne
 - `GET /api/v1/feed` — public accepted-clip feed with cursor pagination and metrics.
 - `POST /api/v1/feed/:submissionId/view` — idempotent visitor/user view event; updates clip metrics and creator reputation.
 - `GET /api/v1/profiles/:userId` — public creator/clipper profile, accepted works, views, and reputation score.
-- `POST /api/v1/ai/clips` — authenticated OpenClip project creation with `{sourceAssetId,campaignId?,instructions,aspectRatio}` and required `idempotency-key`; requires `OPENCLIP_API_BASE` plus a provider API key.
-- `GET /api/v1/ai/clips/:id` — authenticated provider status polling and usage settlement.
+- `POST /api/v1/ai/clips` — authenticated native processing job with either `{sourceAssetId,campaignId?,instructions,aspectRatio,start?,end?,caption?,captionStyle?}` or `{sourceUrl,rightsConfirmed:true,instructions,aspectRatio,start?,end?,caption?,captionStyle?}`; requires `idempotency-key`, clipper eligibility and five AI usage units. URL users attest to ownership/permission. `aspectRatio` is `9:16`, `1:1`, or `16:9`. `sourceUrl` must be HTTPS on YouTube, TikTok, Instagram, or X. An optional explicit segment is measured in seconds, with a maximum length of 180 seconds. In the studio, a `MM:SS–MM:SS`/`HH:MM:SS–HH:MM:SS` range in the prompt takes precedence; otherwise the editor's in/out points are used.
+- `GET /api/v1/ai/clips/:id` — authenticated native job status and resulting `output_asset_id`; render work is performed by `npm run worker:native`, not in the request.
 - `GET /api/v1/ai/usage` — current user's free, paid, and consumed AI units.
 - `GET|POST /api/v1/admin/ai/usage` — admin usage report and balance top-up; POST body `{userId,units,reason}`.

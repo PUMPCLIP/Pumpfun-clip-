@@ -6,12 +6,12 @@ Development implementation of a streamer campaign marketplace. Streamers publish
 
 ## Local setup
 
-Requirements: Node 24, PostgreSQL 16 (or Docker), FFmpeg with ffprobe and subtitles/libass support, a Solana devnet wallet.
+Requirements: Node 24, Python 3.10+, PostgreSQL 16 (or Docker), FFmpeg with ffprobe and subtitles/libass support, a Solana devnet wallet. The native video worker installs the pinned `yt-dlp` package from `requirements-video.txt` for public social video URL ingestion.
 
 1. Run `docker compose up -d` or provide a PostgreSQL 16 instance.
 2. Copy `.env.example` to `.env.local`. Set `DATABASE_URL`, `APP_URL`, Google OAuth keys, a **devnet** PUMPCLIP mint, token treasury wallet, and SOL custody wallet. The Google redirect URI is `http://localhost:3000/api/v1/auth/google/callback`.
 3. Run `npm install`, `npm run db:migrate`, then `npm run dev`.
-4. In another terminal run `npm run worker` for manual clip exports. Set `OPENAI_API_KEY` and run `npm run worker:ai` for AI analysis.
+4. Create a Python environment with `python3 -m venv .venv-video && .venv-video/bin/pip install -r requirements-video.txt`. Run `npm run worker` for manual studio exports; run `PUMPCLIP_PYTHON="$PWD/.venv-video/bin/python" npm run worker:native` for prompt-driven native clips. Both workers must share `DATABASE_URL` and the same private `data/private` volume (or private S3-compatible `MEDIA_BUCKET`). Set `OPENAI_API_KEY` and run `npm run worker:ai` only if transcript/highlight analysis is wanted; native clipping does not require an AI-provider key.
 
 ### Privy login and embedded Solana wallets
 
@@ -21,15 +21,15 @@ Migration `010_identity_and_payouts.sql` keeps existing Google users compatible,
 
 ### Discovery feed, profiles, and AI credits
 
-Migration `011_feed_ai_usage.sql` adds the public `/feed` vertical discovery experience, accepted-work view metrics, creator/clipper reputation scores, metered AI accounts, OpenClip project requests, and administrator credit controls. The feed is available at `/feed`; creator profiles are available at `/profile/:userId`.
+Migration `011_feed_ai_usage.sql` adds the public `/feed` vertical discovery experience, accepted-work view metrics, creator/clipper reputation scores, metered AI accounts, and administrator credit controls. Migration `012_native_video_clips.sql` replaces the provider project adapter with a native processing queue. The feed is available at `/feed`; creator profiles are available at `/profile/:userId`.
 
-The studio prompt bar supports the existing local transcript/highlight worker and a server-side OpenClip adapter. The adapter accepts the provider project contract at `POST {OPENCLIP_API_BASE}/projects` with `{source_url,instructions,aspect_ratio,webhook_url}` and polls `GET {OPENCLIP_API_BASE}/projects/:id`. The official OpusClip documentation confirms that its API is an account-gated project-based long-form-to-short-form service; configure the exact base URL and API key supplied by your provider account. The code intentionally does not expose provider credentials to the browser.
+The studio prompt bar submits native asynchronous clip requests to `POST /api/v1/ai/clips`, polled at `GET /api/v1/ai/clips/:id`. Jobs accept a rights-declared, authorized source asset or an HTTPS YouTube, TikTok, Instagram, or X video page; exact time ranges may be entered in the prompt (for example `00:45–01:12`) or use the editor's in/out points. Direct URL submissions require an explicit confirmation that the user owns or has permission to use the video. The self-hosted Python engine uses FFmpeg/ffprobe for probing, audio extraction/chunking, timestamp-accurate cuts, caption burn-in, and 9:16, 1:1, or 16:9 MP4 export. URL ingestion is handled with pinned yt-dlp on the native worker; provider credentials are not used. Intermediates are removed after success or failure, while source/output media remain in private storage.
 
-AI usage costs are currently `1` unit for highlight analysis and `5` units for an OpenClip project. Each user receives 10 free units on first use; administrators can inspect balances with `GET /api/v1/admin/ai/usage` and top up with `POST /api/v1/admin/ai/usage` using `{userId,units,reason}`. Set `users.is_admin=true` only for an explicitly authorized operator.
+AI usage costs are currently `1` unit for highlight analysis and `5` units for a native clip job. Each user receives 10 free units on first use; administrators can inspect balances with `GET /api/v1/admin/ai/usage` and top up with `POST /api/v1/admin/ai/usage` using `{userId,units,reason}`. Credits are reserved when a render is queued, consumed when it succeeds, and restored when processing fails. Set `users.is_admin=true` only for an explicitly authorized operator.
 
 For local UI evaluation without Google, set `ALLOW_DEV_AUTH=true` with `SOLANA_CLUSTER=devnet` and `APP_URL=http://localhost:3000`, run `npm run db:seed`, and use the demo sign in buttons. The development users still need real linked devnet wallets and eligible token balances for protected actions. Never enable this mode outside localhost.
 
-The media folder `data/private` is local and excluded from git. It must be persisted for the upload and worker processes. Do not deploy it to a stateless host. Configure a private S3-compatible `MEDIA_BUCKET` shared by web and workers for staging; the authenticated media API serves authorized video bytes. Add scanning and retention before production.
+The media folder `data/private` is local and excluded from git. It must be persisted/shared by the upload and worker processes; configure private S3-compatible `MEDIA_BUCKET` for multi-container staging. The authenticated media API serves authorized video bytes. URL sources are limited to the supported social domains and 512 MiB / four-hour media limits apply. Deploy the native worker with outbound access restricted to the supported sites where the hosting environment permits it. Add malware scanning and a product-level retention policy before production.
 
 ## Checks
 
@@ -55,7 +55,9 @@ Mainnet money endpoints are disabled by configuration. Values are integer raw to
 - `app/api/v1/` authenticated versioned API routes
 - `lib/` DB, auth, chain verification and access gate
 - `db/migrations/` PostgreSQL schema
-- `scripts/worker.mjs` independent FFmpeg job process
+- `scripts/worker.mjs` manual studio FFmpeg render process
+- `scripts/native-worker.mjs` async private worker for Python/FFmpeg native clip jobs
+- `engine/video.py` native ingest, audio, range, probe, and preset export engine
 - `docs/` release gates, security notes and API outline
 
 ## API conventions

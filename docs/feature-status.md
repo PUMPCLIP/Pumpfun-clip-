@@ -9,6 +9,7 @@
 | Reward award ledger, 48-hour hold, dispute and payout | Devnet operator flow | No real payout run; shared custody, manual dispute review and no refund flow |
 | Manual studio, caption presets and FFmpeg export | Implemented | Full browser journey and production media scan pending |
 | AI transcription and suggested cuts | Worker and UI implemented | Provider key, sample video and cost verification pending; heuristic ranking |
+| Native prompt-driven video clipping | Python/FFmpeg engine, queue, URL/asset ingestion, three aspect presets and metered credits implemented | Install pinned yt-dlp dependency; worker, supported social URLs, storage and credits need staging end-to-end testing |
 | YouTube private upload | OAuth, upload reservation and interrupted session status implemented | Credentials, channel test and resumable transfer testing pending |
 | TikTok draft upload | OAuth, chunk upload, inbox/status flow implemented | Developer app `video.upload` approval, real account and provider test pending; user publishes in TikTok |
 | TikTok direct post | OAuth, creator settings, consent, upload and status implemented | `video.publish` audit, `video.upload` approval and real account test pending |
