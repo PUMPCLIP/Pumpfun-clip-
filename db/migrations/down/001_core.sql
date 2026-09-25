@@ -1,0 +1,13 @@
+DROP TABLE IF EXISTS audit_events;
+DROP TABLE IF EXISTS submissions;
+DROP TABLE IF EXISTS campaign_memberships;
+DROP TABLE IF EXISTS escrow_accounts;
+DROP TABLE IF EXISTS funding_intents;
+DROP TABLE IF EXISTS fee_intents;
+DROP TABLE IF EXISTS campaigns;
+DROP TABLE IF EXISTS media_assets;
+DROP TABLE IF EXISTS token_gate_checks;
+DROP TABLE IF EXISTS wallet_challenges;
+DROP TABLE IF EXISTS sessions;
+DROP TABLE IF EXISTS wallets;
+DROP TABLE IF EXISTS users;

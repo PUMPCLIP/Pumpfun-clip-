@@ -1,0 +1,59 @@
+import pg from 'pg';
+import crypto from 'node:crypto';
+import {spawn} from 'node:child_process';
+import {mkdir,readFile,writeFile} from 'node:fs/promises';
+import path from 'node:path';
+const client=new pg.Client({connectionString:process.env.DATABASE_URL});
+const storage=path.resolve('data/private');
+await client.connect();
+const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+async function render(input,output,start,duration,caption) {
+  let subtitleFilter='';
+  if(caption.trim()) {
+    const subtitle=output+'.srt';
+    const clean=caption.replace(/[\r\n<>]/g,' ').slice(0,200);
+    const timestamp=seconds=>{const ms=Math.floor(seconds*1000);return `${String(Math.floor(ms/3600000)).padStart(2,'0')}:${String(Math.floor(ms/60000)%60).padStart(2,'0')}:${String(Math.floor(ms/1000)%60).padStart(2,'0')},${String(ms%1000).padStart(3,'0')}`;};
+    await writeFile(subtitle,`1\n00:00:00,000 --> ${timestamp(duration)}\n${clean}\n`);
+    subtitleFilter=`,subtitles=${subtitle}`;
+  }
+  return new Promise((resolve,reject)=>{
+    const args=['-hide_banner','-loglevel','error','-y','-ss',String(start),'-i',input,'-t',String(duration),
+      '-vf','scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1'+subtitleFilter,
+      '-c:v','libx264','-preset','veryfast','-pix_fmt','yuv420p','-c:a','aac','-movflags','+faststart'];
+    args.push(output);
+    const proc=spawn('ffmpeg',args,{stdio:['ignore','ignore','pipe']});let error='';
+    proc.stderr.on('data',d=>error+=d.toString().slice(0,1000));
+    proc.on('close',code=>code===0?resolve():reject(new Error(error||'FFmpeg failed')));
+  });
+}
+async function tick() {
+  await client.query('BEGIN');
+  let job;
+  try {
+    const result=await client.query(`SELECT j.*,a.object_key FROM studio_jobs j JOIN studio_projects p ON p.id=j.project_id
+      JOIN media_assets a ON a.id=p.source_asset_id WHERE j.status='queued' ORDER BY j.created_at FOR UPDATE OF j SKIP LOCKED LIMIT 1`);
+    job=result.rows[0];
+    if(job) await client.query("UPDATE studio_jobs SET status='processing',updated_at=now() WHERE id=$1",[job.id]);
+    await client.query('COMMIT');
+  } catch(e) {await client.query('ROLLBACK');throw e;}
+  if(!job) return false;
+  const key=crypto.randomUUID()+'.mp4',output=path.join(storage,key);
+  try {
+    await mkdir(storage,{recursive:true});
+    await render(path.join(storage,job.object_key),output,Number(job.start_seconds),Number(job.end_seconds)-Number(job.start_seconds),job.caption);
+    const bytes=await readFile(output),sha=crypto.createHash('sha256').update(bytes).digest('hex');
+    await client.query('BEGIN');
+    const asset=await client.query(`INSERT INTO media_assets(owner_id,kind,object_key,sha256,mime,byte_size,status)
+      VALUES($1,'clip',$2,$3,'video/mp4',$4,'verified') RETURNING id`,[job.owner_id,key,sha,bytes.length]);
+    await client.query("UPDATE studio_jobs SET status='succeeded',output_asset_id=$2,updated_at=now() WHERE id=$1",[job.id,asset.rows[0].id]);
+    await client.query('COMMIT');
+  } catch(e) {
+    await client.query('ROLLBACK').catch(()=>{});
+    await client.query("UPDATE studio_jobs SET status='failed',error_message=$2,updated_at=now() WHERE id=$1",[job.id,String(e).slice(0,1000)]);
+    console.error('Job failed',job.id,e);
+  }
+  return true;
+}
+console.log('PUMPCLIP studio worker started');
+process.on('SIGTERM',async()=>{await client.end();process.exit(0);});
+while(true) {try {if(!await tick()) await pause(2000);} catch(e) {console.error(e);await pause(5000);}}
