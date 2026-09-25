@@ -6,7 +6,7 @@ import {PGlite} from '@electric-sql/pglite';
 test('database rejects wallet reuse, duplicate clip hashes and overreserved escrow',async()=>{
   const db=new PGlite();
   try {
-    for(const name of ['001_core.sql','002_studio.sql','003_rewards.sql','004_ai.sql','005_social.sql','006_tiktok.sql','007_youtube_uploads.sql']) {
+    for(const name of ['001_core.sql','002_studio.sql','003_rewards.sql','004_ai.sql','005_social.sql','006_tiktok.sql','007_youtube_uploads.sql','008_publications.sql']) {
       const sql=readFileSync('db/migrations/'+name,'utf8').replace('CREATE EXTENSION IF NOT EXISTS pgcrypto;','');
       await db.exec(sql);
     }
@@ -26,7 +26,9 @@ test('database rejects wallet reuse, duplicate clip hashes and overreserved escr
     await assert.rejects(db.query('INSERT INTO tiktok_drafts(user_id,asset_id) VALUES($1,$2)',[u2,asset]));
     await db.query('INSERT INTO youtube_uploads(user_id,asset_id,byte_size) VALUES($1,$2,100)',[u2,asset]);
     await assert.rejects(db.query('INSERT INTO youtube_uploads(user_id,asset_id,byte_size) VALUES($1,$2,100)',[u2,asset]));
-    for(const name of ['007_youtube_uploads.sql','006_tiktok.sql','005_social.sql','004_ai.sql','003_rewards.sql','002_studio.sql','001_core.sql']) await db.exec(readFileSync('db/migrations/down/'+name,'utf8'));
+    await db.query("INSERT INTO social_publications(user_id,asset_id,provider) VALUES($1,$2,'x')",[u2,asset]);
+    await assert.rejects(db.query("INSERT INTO social_publications(user_id,asset_id,provider) VALUES($1,$2,'x')",[u2,asset]));
+    for(const name of ['008_publications.sql','007_youtube_uploads.sql','006_tiktok.sql','005_social.sql','004_ai.sql','003_rewards.sql','002_studio.sql','001_core.sql']) await db.exec(readFileSync('db/migrations/down/'+name,'utf8'));
     const tables=await db.query("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename IN ('users','campaigns','studio_jobs')");
     assert.equal(tables.rows.length,0);
   } finally {await db.close();}

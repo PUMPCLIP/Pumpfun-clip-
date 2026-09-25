@@ -11,7 +11,10 @@
 | AI transcription and suggested cuts | Worker and UI implemented | Provider key, sample video and cost verification pending; heuristic ranking |
 | YouTube private upload | OAuth, upload reservation and interrupted session status implemented | Credentials, channel test and resumable transfer testing pending |
 | TikTok draft upload | OAuth, chunk upload, inbox/status flow implemented | Developer app `video.upload` approval, real account and provider test pending; user publishes in TikTok |
-| TikTok direct post, Instagram and X publishing/analytics | Not implemented | Developer approvals and platform APIs needed |
+| TikTok direct post | OAuth, creator settings, consent, upload and status implemented | `video.publish` audit, `video.upload` approval and real account test pending |
+| Instagram Reels | Facebook OAuth, Page selection, container status and publish implemented | Meta permissions review, external media fetch and professional account test pending |
+| X video posts | PKCE OAuth, chunk upload, processing status and post implemented | X project access, quotas and real account test pending |
+| Platform metrics and post ownership proof | Not implemented | Do not use user supplied URLs as reward proof |
 | Private S3-compatible media and staging containers | Integration/template implemented | No bucket, HTTPS domain, managed DB, monitoring or backups provisioned |
 | Live-account end-to-end tests | Not run | Requires separate Google, wallet, provider, custody and social accounts |
 
