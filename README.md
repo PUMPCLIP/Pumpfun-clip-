@@ -13,6 +13,12 @@ Requirements: Node 24, PostgreSQL 16 (or Docker), FFmpeg with ffprobe and subtit
 3. Run `npm install`, `npm run db:migrate`, then `npm run dev`.
 4. In another terminal run `npm run worker` for manual clip exports. Set `OPENAI_API_KEY` and run `npm run worker:ai` for AI analysis.
 
+### Privy login and embedded Solana wallets
+
+Set `NEXT_PUBLIC_PRIVY_APP_ID` and `PRIVY_VERIFICATION_KEY` from the Privy Dashboard to enable the production login button. Enable email OTP, Google, Twitter and wallet login in the dashboard. The app configures Solana embedded-wallet creation for users without an existing wallet. The client sends a Privy access token and identity token to `/api/v1/auth/privy`; the server verifies the access token with `@privy-io/node`, provisions the user, creates the normal PUMPCLIP session, and syncs a verified embedded Solana wallet when present. If the Privy variables are absent, the existing Google OAuth and localhost development auth paths remain available.
+
+Migration `010_identity_and_payouts.sql` keeps existing Google users compatible, adds Privy identity fields, allows multiple linked wallets, and creates payout destinations for Phantom, Solflare, Backpack, Axiom, Privy embedded wallets and manually entered Solana addresses. Axiom is represented as a Solana payout rail; it is a non-custodial Solana wallet/trading app, not a public PUMPCLIP payout API.
+
 For local UI evaluation without Google, set `ALLOW_DEV_AUTH=true` with `SOLANA_CLUSTER=devnet` and `APP_URL=http://localhost:3000`, run `npm run db:seed`, and use the demo sign in buttons. The development users still need real linked devnet wallets and eligible token balances for protected actions. Never enable this mode outside localhost.
 
 The media folder `data/private` is local and excluded from git. It must be persisted for the upload and worker processes. Do not deploy it to a stateless host. Configure a private S3-compatible `MEDIA_BUCKET` shared by web and workers for staging; the authenticated media API serves authorized video bytes. Add scanning and retention before production.
@@ -31,7 +37,7 @@ For an externally provisioned HTTPS host, managed PostgreSQL and private bucket,
 
 ## Money and custody
 
-Set the token treasury to a wallet with an associated token account for the configured mint. The browser constructs transfers from the linked wallet; the server verifies confirmed transfers, amounts, owner balance deltas and unique signatures before advancing state. The SOL custody address is **platform controlled** and shared across campaigns in this development build. A devnet-only operator payout command exists with a 48-hour hold and ledger reconciliation, but there is no on-chain escrow, automated dispute resolution or refund process. Never accept public money against this build.
+Set the token treasury to a wallet with an associated token account for the configured mint. The browser constructs transfers from the linked wallet; the server verifies confirmed transfers, amounts, owner balance deltas and unique signatures before advancing state. Users can register more than one Solana payout destination, but destination ownership and payout execution must still be verified by the operator payout workflow. The SOL custody address is **platform controlled** and shared across campaigns in this development build. A devnet-only operator payout command exists with a 48-hour hold and ledger reconciliation, but there is no on-chain escrow, automated dispute resolution or refund process. Never accept public money against this build.
 
 Mainnet money endpoints are disabled by configuration. Values are integer raw token units and lamports in the database. Do not reuse development addresses for production.
 
