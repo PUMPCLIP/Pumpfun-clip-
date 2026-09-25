@@ -6,7 +6,7 @@ import {PGlite} from '@electric-sql/pglite';
 test('database rejects wallet reuse, duplicate clip hashes and overreserved escrow',async()=>{
   const db=new PGlite();
   try {
-    for(const name of ['001_core.sql','002_studio.sql']) {
+    for(const name of ['001_core.sql','002_studio.sql','003_rewards.sql','004_ai.sql','005_social.sql']) {
       const sql=readFileSync('db/migrations/'+name,'utf8').replace('CREATE EXTENSION IF NOT EXISTS pgcrypto;','');
       await db.exec(sql);
     }
@@ -21,7 +21,7 @@ test('database rejects wallet reuse, duplicate clip hashes and overreserved escr
     await assert.rejects(db.query('INSERT INTO submissions(campaign_id,clipper_id,media_sha256) VALUES($1,$2,$3)',[c,u2,'a'.repeat(64)]));
     await db.query("INSERT INTO fee_intents(user_id,campaign_id,purpose,mint,amount_raw,treasury,idempotency_key,signature) VALUES($1,$2,'entry','mint',1,'treasury','key-one','sig-one')",[u2,c]);
     await assert.rejects(db.query("INSERT INTO fee_intents(user_id,campaign_id,purpose,mint,amount_raw,treasury,idempotency_key,signature) VALUES($1,$2,'creation','mint',1,'treasury','key-two','sig-one')",[u1,c]));
-    for(const name of ['002_studio.sql','001_core.sql']) await db.exec(readFileSync('db/migrations/down/'+name,'utf8'));
+    for(const name of ['005_social.sql','004_ai.sql','003_rewards.sql','002_studio.sql','001_core.sql']) await db.exec(readFileSync('db/migrations/down/'+name,'utf8'));
     const tables=await db.query("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename IN ('users','campaigns','studio_jobs')");
     assert.equal(tables.rows.length,0);
   } finally {await db.close();}

@@ -1,30 +1,13 @@
-# Launch readiness
+# Launch readiness — 2026-09-25
 
-**Decision: do not launch for public funding, fee collection, or promised SOL rewards yet.** This repository is a devnet development build. A polished UI and a passing build do not authorize real-money operation.
+**Public launch remains blocked.** The code now has devnet token issuance and distribution commands, reward award reservations and operator payout, AI transcription, a private YouTube upload flow and a staging deployment template. None has been exercised against founder-owned live accounts, funded custody or provisioned infrastructure.
 
-## What exists
+## Required before public operation
 
-- Google OIDC code flow, signed wallet linking, role selection and a PUMPCLIP holder balance check against a configured SPL token mint.
-- Devnet token fee and SOL funding intents with on-chain transaction verification and signature uniqueness.
-- Owned source upload, campaign drafts, entry fee, join, clip upload, manual FFmpeg editing, submission and streamer review.
-- Responsive marketplace and dedicated clipping workspace with timeline, caption preview, render status and export submission.
+1. Founder defines token supply, decimals, allocations, vesting, mint/freeze authorities, treasury owners, fee schedule and Pump.fun launch route. Obtain security and legal review, then separately approve any irreversible mainnet mint and distribution. No token has been created here.
+2. Replace shared custody with independently reviewed campaign escrow and refund/dispute design. Audit signer isolation, transaction recovery, deposits and withdrawals. Verify a full devnet payout with distinct funded accounts and reconcile the ledger.
+3. Provision HTTPS, managed PostgreSQL, private object storage, dedicated RPC, OAuth and AI credentials, monitoring, backups and disaster recovery. Validate media scanning, rate limits, abuse controls, session hardening and social upload retry behavior.
+4. Test Google login, real wallet signing and token gate, campaign lifecycle, AI analysis, clip export, YouTube private upload and payout in a production-like staging environment. Test keyboard, mobile and recovery scenarios.
+5. Integrate TikTok, Instagram and X only after developer permissions and review. Verify social metrics before tying rewards to performance. Publish clear terms, licensing, privacy and payout policies.
 
-## What does not exist
-
-- **No PUMPCLIP token has been created, minted, distributed, or made available by this code.** The owner must provide the real mint, decimals, treasury, threshold, token distribution plan and network. The app reads those settings and checks balances.
-- No verified reward observations, award reservation, payout signer, dispute hold, SOL distribution or reconciliation. A campaign's displayed reward is proposed and cannot be paid by the app.
-- No AI transcription or highlight ranking. Manual editing works through a separate FFmpeg worker.
-- No campaign-specific production escrow, refund mechanism, production object storage, scanning, queue durability or admin MFA.
-- No configured Google client, public domain, RPC provider, token mint, treasury addresses or staging deployment in this repository.
-- No complete browser, wallet, OAuth, devnet money or mobile accessibility verification in a production-like environment.
-
-## Release gates
-
-1. Product owner provides approved devnet and mainnet mint, decimals, holder minimums, fee schedule, token and SOL treasury/custody model, plus wallet ownership controls. Verify addresses out of band.
-2. Complete R2 ledger, holds, audited payout controls, dispute process and reconciliation; replace shared development treasury with reviewed campaign custody. Run independent security and legal review before mainnet.
-3. Complete R3 transcription/candidates or explicitly revise the public product promise to manual studio; add production media storage, queue, retries, malware inspection and retention policy.
-4. Provision Google OAuth, managed PostgreSQL, object storage, RPC, worker infrastructure, secrets, monitoring, backups and a domain. Exercise staging rollback and restore.
-5. Run every handoff verification scenario with distinct devnet accounts, real confirmed signatures and playable clips. Test keyboard, screen reader and mobile widths with the full flow.
-6. Review terms, privacy, content rights and refund policy with qualified counsel, then authorize the mainnet configuration explicitly.
-
-The code intentionally refuses money endpoints unless all devnet mint/treasury settings are present. Mainnet money flows are disabled. Do not remove these safeguards to skip the release gates.
+Mainnet money endpoints and operator scripts remain disabled by code. See [integration runbook](integrations.md).

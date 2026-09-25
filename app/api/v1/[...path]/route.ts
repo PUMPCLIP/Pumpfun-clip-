@@ -3,14 +3,14 @@ import {z} from 'zod';
 import {db,one,tx,audit} from '@/lib/db';
 import {ApiError,hash,random,requireUser,mutation,revokeSession,jsonError} from '@/lib/auth';
 import {config,raw} from '@/lib/config';
-import {address,balance,verifyWalletSignature,verifyTokenTransfer,verifySolTransfer} from '@/lib/chain';
+import {address,balance,verifyWalletSignature,verifyTokenTransfer,verifySolTransfer,assertDevnet} from '@/lib/chain';
 import {gate} from '@/lib/access';
 export const runtime='nodejs';
 type Context={params:Promise<{path:string[]}>};
 const uuid=z.string().uuid();
 const idempotency=(r:Request)=>{const k=r.headers.get('idempotency-key'); if(!k || k.length>128) throw new ApiError('IDEMPOTENCY_KEY_REQUIRED'); return k;};
 async function body(request:Request,schema:z.ZodType) {const value=schema.safeParse(await request.json().catch(()=>null)); if(!value.success) throw new ApiError('INVALID_INPUT',400,value.error.issues.map(i=>i.message).join('; ')); return value.data as Record<string,any>;}
-function requireMoney() {if(!config.moneyEnabled) throw new ApiError('DEVNET_MONEY_CONFIG_REQUIRED',503);}
+async function requireMoney() {if(!config.moneyEnabled) throw new ApiError('DEVNET_MONEY_CONFIG_REQUIRED',503);await assertDevnet();}
 async function campaignOwner(id:string,user:string) {
   const c=await one<any>('SELECT * FROM campaigns WHERE id=$1',[id]);
   if(!c) throw new ApiError('NOT_FOUND',404);
@@ -116,7 +116,7 @@ async function handle(request:Request,path:string[],method:string):Promise<Respo
     await audit(db,user.user_id,'campaign.updated','campaign',p[1]); return reply(updated);
   }
   if(method==='POST' && p.join('/')==='fees/intents') {
-    requireMoney(); idempotency(request);
+    await requireMoney(); idempotency(request);
     const data=await body(request,z.object({campaignId:uuid,purpose:z.enum(['creation','entry'])}));
     const campaign=await one<any>('SELECT * FROM campaigns WHERE id=$1',[data.campaignId]); if(!campaign) throw new ApiError('NOT_FOUND',404);
     if(data.purpose==='creation') {
@@ -134,7 +134,7 @@ async function handle(request:Request,path:string[],method:string):Promise<Respo
     return reply(intent,201);
   }
   if(method==='POST' && p[0]==='fees' && p[2]==='verify') {
-    requireMoney(); idempotency(request);
+    await requireMoney(); idempotency(request);
     const data=await body(request,z.object({signature:z.string().min(60).max(120)}));
     const intent=await one<any>('SELECT * FROM fee_intents WHERE id=$1 AND user_id=$2',[p[1],user.user_id]);
     if(!intent) throw new ApiError('NOT_FOUND',404);
@@ -151,7 +151,7 @@ async function handle(request:Request,path:string[],method:string):Promise<Respo
     } catch(e:any) {if(e.code==='23505') throw new ApiError('DUPLICATE_SIGNATURE',409); throw e;}
   }
   if(method==='POST' && p[0]==='campaigns' && p[2]==='funding-intents') {
-    requireMoney(); idempotency(request);
+    await requireMoney(); idempotency(request);
     const c=await campaignOwner(p[1],user.user_id); if(c.state!=='funding_pending') throw new ApiError('FEE_REQUIRED',409);
     await gate(user.user_id,'streamer');
     const data=await body(request,z.object({lamports:z.string().regex(/^[0-9]+$/)}));
@@ -163,7 +163,7 @@ async function handle(request:Request,path:string[],method:string):Promise<Respo
     return reply(intent,201);
   }
   if(method==='POST' && p[0]==='funding-intents' && p[2]==='verify') {
-    requireMoney(); idempotency(request);
+    await requireMoney(); idempotency(request);
     const data=await body(request,z.object({signature:z.string().min(60).max(120)}));
     const intent=await one<any>('SELECT * FROM funding_intents WHERE id=$1 AND user_id=$2',[p[1],user.user_id]); if(!intent) throw new ApiError('NOT_FOUND',404);
     if(intent.state==='verified') return reply(intent);
@@ -218,10 +218,35 @@ async function handle(request:Request,path:string[],method:string):Promise<Respo
     await gate(user.user_id,'streamer');
     const data=await body(request,z.object({decision:z.enum(['approved','rejected']),reason:z.string().min(3).max(1000)}));
     const s=await one<any>('SELECT * FROM submissions WHERE id=$1',[p[1]]); if(!s) throw new ApiError('NOT_FOUND',404);
-    await campaignOwner(s.campaign_id,user.user_id);
-    const updated=await one<any>("UPDATE submissions SET state=$2,review_reason=$3,reviewed_by=$4,updated_at=now() WHERE id=$1 AND state IN ('submitted','in_review') RETURNING *",[p[1],data.decision,data.reason,user.user_id]);
-    if(!updated) throw new ApiError('SUBMISSION_ALREADY_REVIEWED',409);
-    await audit(db,user.user_id,'submission.reviewed','submission',p[1],data); return reply(updated);
+    const campaign=await campaignOwner(s.campaign_id,user.user_id);
+    if(data.decision==='approved') await requireMoney();
+    const updated=await tx(async client=>{
+      const locked=await one<any>('SELECT * FROM submissions WHERE id=$1 FOR UPDATE',[p[1]],client);
+      if(!['submitted','in_review'].includes(locked.state)) throw new ApiError('SUBMISSION_ALREADY_REVIEWED',409);
+      if(data.decision==='approved') {
+        const amount=BigInt(campaign.fixed_reward_lamports);
+        if(amount<=0n) throw new ApiError('REWARD_NOT_CONFIGURED',409);
+        const recipient=await one<{address:string}>('SELECT address FROM wallets WHERE user_id=$1',[locked.clipper_id],client);
+        if(!recipient) throw new ApiError('CLIPPER_WALLET_REQUIRED',409);
+        const reserved=await one('UPDATE escrow_accounts SET reserved_lamports=reserved_lamports+$2,updated_at=now() WHERE campaign_id=$1 AND funded_lamports-reserved_lamports-paid_lamports >= $2 RETURNING campaign_id',[locked.campaign_id,String(amount)],client);
+        if(!reserved) throw new ApiError('INSUFFICIENT_ESCROW',409);
+        await client.query('INSERT INTO reward_awards(submission_id,campaign_id,clipper_id,recipient,lamports) VALUES($1,$2,$3,$4,$5)',[locked.id,locked.campaign_id,locked.clipper_id,recipient.address,String(amount)]);
+      }
+      const result=await one<any>('UPDATE submissions SET state=$2,review_reason=$3,reviewed_by=$4,updated_at=now() WHERE id=$1 RETURNING *',[p[1],data.decision,data.reason,user.user_id],client);
+      await audit(client,user.user_id,'submission.reviewed','submission',p[1],data);
+      return result;
+    });
+    return reply(updated);
+  }
+  if(method==='GET' && p.join('/')==='me/rewards') {
+    const rows=await db.query('SELECT id,submission_id,campaign_id,lamports,state,available_at,signature,paid_at FROM reward_awards WHERE clipper_id=$1 ORDER BY created_at DESC',[user.user_id]);
+    return reply(rows.rows);
+  }
+  if(method==='POST' && p[0]==='rewards' && p[2]==='dispute') {
+    const data=await body(request,z.object({reason:z.string().min(10).max(1000)}));
+    const award=await one<any>("UPDATE reward_awards SET state='disputed',updated_at=now() WHERE id=$1 AND clipper_id=$2 AND state IN ('held','ready') RETURNING id",[p[1],user.user_id]);
+    if(!award) throw new ApiError('REWARD_NOT_DISPUTABLE',409);
+    await audit(db,user.user_id,'reward.disputed','reward_award',award.id,{reason:data.reason});return reply({ok:true});
   }
   throw new ApiError('NOT_FOUND',404);
 }

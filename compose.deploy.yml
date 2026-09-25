@@ -1,0 +1,61 @@
+# Staging deployment. Place a TLS reverse proxy in front of 127.0.0.1:3000.
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pumpclip
+      POSTGRES_USER: pumpclip
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set a database password}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pumpclip"]
+      interval: 10s
+      retries: 6
+  migrate:
+    build: .
+    command: ["npm","run","db:migrate"]
+    env_file: .env.deploy
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+  web:
+    build: .
+    restart: unless-stopped
+    env_file: .env.deploy
+    environment:
+      MEDIA_BUCKET: ${MEDIA_BUCKET:?configure private object storage}
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+  render-worker:
+    build: .
+    command: ["npm","run","worker"]
+    restart: unless-stopped
+    env_file: .env.deploy
+    environment:
+      MEDIA_BUCKET: ${MEDIA_BUCKET:?configure private object storage}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+  ai-worker:
+    build: .
+    command: ["npm","run","worker:ai"]
+    restart: unless-stopped
+    env_file: .env.deploy
+    environment:
+      MEDIA_BUCKET: ${MEDIA_BUCKET:?configure private object storage}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+volumes:
+  pgdata:

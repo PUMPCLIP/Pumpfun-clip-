@@ -3,8 +3,11 @@ import crypto from 'node:crypto';
 import {spawn} from 'node:child_process';
 import {mkdir,readFile,writeFile} from 'node:fs/promises';
 import path from 'node:path';
+import {S3Client,GetObjectCommand,PutObjectCommand} from '@aws-sdk/client-s3';
 const client=new pg.Client({connectionString:process.env.DATABASE_URL});
 const storage=path.resolve('data/private');
+const media=process.env.MEDIA_BUCKET?new S3Client({region:process.env.MEDIA_REGION||'auto',endpoint:process.env.MEDIA_ENDPOINT||undefined,forcePathStyle:!!process.env.MEDIA_ENDPOINT,credentials:process.env.MEDIA_ACCESS_KEY_ID&&process.env.MEDIA_SECRET_ACCESS_KEY?{accessKeyId:process.env.MEDIA_ACCESS_KEY_ID,secretAccessKey:process.env.MEDIA_SECRET_ACCESS_KEY}:undefined}):null;
+async function sourceFile(key){if(!media)return path.join(storage,key);const result=await media.send(new GetObjectCommand({Bucket:process.env.MEDIA_BUCKET,Key:key}));const temp=path.join(storage,crypto.randomUUID()+'.source');await writeFile(temp,Buffer.from(await result.Body.transformToByteArray()));return temp;}
 await client.connect();
 const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function render(input,output,start,duration,caption) {
@@ -40,8 +43,10 @@ async function tick() {
   const key=crypto.randomUUID()+'.mp4',output=path.join(storage,key);
   try {
     await mkdir(storage,{recursive:true});
-    await render(path.join(storage,job.object_key),output,Number(job.start_seconds),Number(job.end_seconds)-Number(job.start_seconds),job.caption);
+    const source=await sourceFile(job.object_key);
+    try {await render(source,output,Number(job.start_seconds),Number(job.end_seconds)-Number(job.start_seconds),job.caption);} finally {if(media)await (await import('node:fs/promises')).unlink(source).catch(()=>{});}
     const bytes=await readFile(output),sha=crypto.createHash('sha256').update(bytes).digest('hex');
+    if(media)await media.send(new PutObjectCommand({Bucket:process.env.MEDIA_BUCKET,Key:key,Body:bytes,ContentType:'video/mp4'}));
     await client.query('BEGIN');
     const asset=await client.query(`INSERT INTO media_assets(owner_id,kind,object_key,sha256,mime,byte_size,status)
       VALUES($1,'clip',$2,$3,'video/mp4',$4,'verified') RETURNING id`,[job.owner_id,key,sha,bytes.length]);

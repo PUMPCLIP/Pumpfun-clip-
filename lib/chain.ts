@@ -4,6 +4,12 @@ import nacl from 'tweetnacl';
 import {config} from './config';
 import {ApiError} from './auth';
 const connection=()=>new Connection(config.rpc,'confirmed');
+export const DEVNET_GENESIS='GH7ome3EiwEr7tu9JuTh2dpYWBJK3z69Xm1ZE3MEE6JC';
+export async function assertDevnet(){
+  if(config.cluster!=='devnet') throw new ApiError('DEVNET_REQUIRED',503);
+  try {if(await connection().getGenesisHash()!==DEVNET_GENESIS) throw new ApiError('RPC_CLUSTER_MISMATCH',503);}
+  catch(e){if(e instanceof ApiError)throw e;throw new ApiError('RPC_UNAVAILABLE',503);}
+}
 export function address(s:string) {try {return new PublicKey(s);} catch {throw new ApiError('INVALID_ADDRESS');}}
 export function verifyWalletSignature(message:string,signature:string,wallet:string) {
   try {return nacl.sign.detached.verify(new TextEncoder().encode(message),bs58.decode(signature),address(wallet).toBytes());}

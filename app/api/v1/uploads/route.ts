@@ -1,4 +1,5 @@
 import {mkdir,writeFile,unlink} from 'node:fs/promises';
+import {putMedia,removeMedia} from '@/lib/storage';
 import {spawn} from 'node:child_process';
 import crypto from 'node:crypto';
 import path from 'node:path';
@@ -36,11 +37,12 @@ export async function POST(request:Request) {
       if(!meta.streams?.some(s=>s.codec_type==='video') || !meta.streams?.some(s=>s.codec_type==='audio') ||
         !Number.isFinite(Number(meta.format.duration)) || Number(meta.format.duration)<=0 || Number(meta.format.duration)>14400) throw new ApiError('INVALID_MEDIA',422);
       const sha=crypto.createHash('sha256').update(bytes).digest('hex');
+      if(process.env.MEDIA_BUCKET){await putMedia(key,bytes,file.type);await unlink(location);}
       const asset=await one<any>(`INSERT INTO media_assets(owner_id,kind,object_key,sha256,mime,byte_size,rights_declared_at,status)
         VALUES($1,$2,$3,$4,$5,$6,$7,'verified') RETURNING id,kind,sha256,mime,byte_size,status`,
         [user.user_id,kind,key,sha,file.type,file.size,kind==='source'?new Date():null]);
       await audit(db,user.user_id,'media.uploaded','media_asset',asset.id,{kind,sha256:sha});
       return Response.json(asset,{status:201});
-    } catch(e) {await unlink(location); throw e;}
+    } catch(e) {await unlink(location).catch(()=>{});if(process.env.MEDIA_BUCKET)await removeMedia(key).catch(()=>{}); throw e;}
   } catch(e) {return jsonError(e,id);}
 }
