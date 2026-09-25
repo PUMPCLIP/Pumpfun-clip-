@@ -43,3 +43,13 @@ All mutation routes require same-origin session and CSRF. AI requests require ho
 - `POST /api/v1/submissions/:id/report` accepts `{reason}` and blocks reward approval while a report is open. The operator resolves reports with `npm run reports`.
 
 Provider evidence does not verify views, current post visibility or ongoing ownership. All mutations require session and CSRF protection.
+
+## Discovery and AI platform routes
+
+- `GET /api/v1/feed` — public accepted-clip feed with cursor pagination and metrics.
+- `POST /api/v1/feed/:submissionId/view` — idempotent visitor/user view event; updates clip metrics and creator reputation.
+- `GET /api/v1/profiles/:userId` — public creator/clipper profile, accepted works, views, and reputation score.
+- `POST /api/v1/ai/clips` — authenticated OpenClip project creation with `{sourceAssetId,campaignId?,instructions,aspectRatio}` and required `idempotency-key`; requires `OPENCLIP_API_BASE` plus a provider API key.
+- `GET /api/v1/ai/clips/:id` — authenticated provider status polling and usage settlement.
+- `GET /api/v1/ai/usage` — current user's free, paid, and consumed AI units.
+- `GET|POST /api/v1/admin/ai/usage` — admin usage report and balance top-up; POST body `{userId,units,reason}`.

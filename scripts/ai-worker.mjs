@@ -49,6 +49,7 @@ async function processJob(job){
  }
  const suggestions=rank(segments);
  await db.query("UPDATE ai_jobs SET status='succeeded',transcript=$2,suggestions=$3,updated_at=now() WHERE id=$1",[job.id,JSON.stringify(segments),JSON.stringify(suggestions)]);
+ if(job.usage_ledger_id){await db.query("UPDATE ai_usage_ledger SET status='consumed' WHERE id=$1 AND status='reserved'",[job.usage_ledger_id]);await db.query("UPDATE ai_usage_accounts SET consumed_units=consumed_units+1,updated_at=now() WHERE user_id=$1",[job.requested_by]);}
  }finally{if(media)await unlink(source).catch(()=>{});}
 }
 console.log('PUMPCLIP AI worker started');
@@ -57,6 +58,6 @@ while(true){let job;
   await db.query('BEGIN');const found=await db.query(`SELECT j.*,a.object_key FROM ai_jobs j JOIN media_assets a ON a.id=j.source_asset_id WHERE j.status='queued' ORDER BY j.created_at FOR UPDATE OF j SKIP LOCKED LIMIT 1`);
   job=found.rows[0];if(job)await db.query("UPDATE ai_jobs SET status='processing',updated_at=now() WHERE id=$1",[job.id]);await db.query('COMMIT');
   if(!job){await wait(2000);continue;}
-  try{await processJob(job);}catch(e){await db.query("UPDATE ai_jobs SET status='failed',error_message=$2,updated_at=now() WHERE id=$1",[job.id,String(e).slice(0,500)]);console.error('AI job failed',job.id,e);}
+  try{await processJob(job);}catch(e){await db.query("UPDATE ai_jobs SET status='failed',error_message=$2,updated_at=now() WHERE id=$1",[job.id,String(e).slice(0,500)]);if(job.usage_ledger_id){const ledger=(await db.query("SELECT metadata FROM ai_usage_ledger WHERE id=$1 AND status='reserved'",[job.usage_ledger_id])).rows[0];if(ledger){const meta=ledger.metadata||{};await db.query('UPDATE ai_usage_accounts SET free_units=free_units+$2,balance_units=balance_units+$3,updated_at=now() WHERE user_id=$1',[job.requested_by,Number(meta.freeUnits||0),Number(meta.paidUnits||0)]);await db.query("UPDATE ai_usage_ledger SET status='released' WHERE id=$1",[job.usage_ledger_id]);}}console.error('AI job failed',job.id,e);}
  }catch(e){await db.query('ROLLBACK').catch(()=>{});console.error(e);await wait(5000);}
 }

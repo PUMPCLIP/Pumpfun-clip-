@@ -19,6 +19,14 @@ Set `NEXT_PUBLIC_PRIVY_APP_ID` and `PRIVY_VERIFICATION_KEY` from the Privy Dashb
 
 Migration `010_identity_and_payouts.sql` keeps existing Google users compatible, adds Privy identity fields, allows multiple linked wallets, and creates payout destinations for Phantom, Solflare, Backpack, Axiom, Privy embedded wallets and manually entered Solana addresses. Axiom is represented as a Solana payout rail; it is a non-custodial Solana wallet/trading app, not a public PUMPCLIP payout API.
 
+### Discovery feed, profiles, and AI credits
+
+Migration `011_feed_ai_usage.sql` adds the public `/feed` vertical discovery experience, accepted-work view metrics, creator/clipper reputation scores, metered AI accounts, OpenClip project requests, and administrator credit controls. The feed is available at `/feed`; creator profiles are available at `/profile/:userId`.
+
+The studio prompt bar supports the existing local transcript/highlight worker and a server-side OpenClip adapter. The adapter accepts the provider project contract at `POST {OPENCLIP_API_BASE}/projects` with `{source_url,instructions,aspect_ratio,webhook_url}` and polls `GET {OPENCLIP_API_BASE}/projects/:id`. The official OpusClip documentation confirms that its API is an account-gated project-based long-form-to-short-form service; configure the exact base URL and API key supplied by your provider account. The code intentionally does not expose provider credentials to the browser.
+
+AI usage costs are currently `1` unit for highlight analysis and `5` units for an OpenClip project. Each user receives 10 free units on first use; administrators can inspect balances with `GET /api/v1/admin/ai/usage` and top up with `POST /api/v1/admin/ai/usage` using `{userId,units,reason}`. Set `users.is_admin=true` only for an explicitly authorized operator.
+
 For local UI evaluation without Google, set `ALLOW_DEV_AUTH=true` with `SOLANA_CLUSTER=devnet` and `APP_URL=http://localhost:3000`, run `npm run db:seed`, and use the demo sign in buttons. The development users still need real linked devnet wallets and eligible token balances for protected actions. Never enable this mode outside localhost.
 
 The media folder `data/private` is local and excluded from git. It must be persisted for the upload and worker processes. Do not deploy it to a stateless host. Configure a private S3-compatible `MEDIA_BUCKET` shared by web and workers for staging; the authenticated media API serves authorized video bytes. Add scanning and retention before production.
