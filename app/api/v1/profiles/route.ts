@@ -14,6 +14,8 @@ export async function GET(request:Request){
         COALESCE(r.accepted_count,0) AS accepted_count,
         COALESCE(r.total_views,0) AS total_views,
         COALESCE(r.reputation_score,0) AS reputation_score,
+        COALESCE((SELECT SUM(ra.lamports) FROM reward_awards ra WHERE ra.clipper_id=u.id AND ra.state IN ('ready','broadcast','paid')),0) AS earned_lamports,
+        COALESCE((SELECT COUNT(*) FROM campaigns c2 WHERE c2.streamer_id=u.id AND c2.state NOT IN ('draft','closed')),0) AS campaign_count,
         work.asset_id,work.campaign_title,work.video_url
       FROM users u
       LEFT JOIN reputation_scores r ON r.user_id=u.id
