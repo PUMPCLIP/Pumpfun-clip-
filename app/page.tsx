@@ -1,2 +1,2 @@
-import App from './ui';
-export default function Home() {return <App/>;}
+import Landing from './landing';
+export default function Home() {return <Landing/>;}
