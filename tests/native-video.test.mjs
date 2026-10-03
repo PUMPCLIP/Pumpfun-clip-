@@ -20,6 +20,16 @@ assert engine.allowed_video_url('https://www.youtube.com/watch?v=abc')
 assert engine.allowed_video_url('https://vm.tiktok.com/abc')
 assert engine.allowed_video_url('https://www.instagram.com/reel/abc/')
 assert engine.allowed_video_url('https://x.com/user/status/1')
+assert engine.public_addresses({'93.184.216.34'})
+assert not engine.public_addresses({'127.0.0.1'})
+assert not engine.public_addresses({'169.254.169.254'})
+assert not engine.public_addresses({'::1'})
+engine.socket.getaddrinfo=lambda host, port, type=None: [(None,None,None,None,('93.184.216.34',port))]
+engine.validate_download_url('https://cdn.example.test/video.mp4')
+engine.socket.getaddrinfo=lambda host, port, type=None: [(None,None,None,None,('10.0.0.1',port))]
+try: engine.validate_download_url('https://cdn.example.test/video.mp4')
+except ValueError: pass
+else: raise AssertionError('private CDN redirect accepted')
 for invalid in ['http://youtube.com/watch?v=x','https://youtube.com.evil.test/watch?v=x','https://127.0.0.1/video','https://youtube.com@127.0.0.1/video','https://youtube.com:8443/watch?v=x']:
     assert not engine.allowed_video_url(invalid), invalid
 assert engine.ASPECTS == {'9:16':(1080,1920),'1:1':(1080,1080),'16:9':(1920,1080)}

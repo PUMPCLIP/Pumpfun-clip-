@@ -10,6 +10,7 @@ import {S3Client,GetObjectCommand,PutObjectCommand,DeleteObjectCommand} from '@a
 
 const db=new pg.Client({connectionString:process.env.DATABASE_URL});
 const root=path.resolve(process.env.VIDEO_WORKDIR||'data/private/native-clips');
+const LEASE_MS=Number(process.env.WORKER_LEASE_MS||15*60*1000);
 const python=process.env.PUMPCLIP_PYTHON||'python3';
 const engine=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../engine/video.py');
 const bucket=process.env.MEDIA_BUCKET;
@@ -48,12 +49,14 @@ function invoke(args,{timeout=4*60*60*1000,maxBytes=64*1024}={}){
 async function claim(){
  await db.query('BEGIN');
  try{
+  await db.query("UPDATE ai_clip_requests SET status='queued',lease_id=NULL,lease_expires_at=NULL,worker_started_at=NULL,updated_at=now() WHERE engine='native' AND status='processing' AND lease_expires_at IS NOT NULL AND lease_expires_at<now()");
+  const leaseId=crypto.randomUUID();
   const found=await db.query(`SELECT r.*,a.object_key AS asset_object_key FROM ai_clip_requests r
    LEFT JOIN media_assets a ON a.id=r.source_asset_id
    WHERE r.status='queued' AND r.engine='native' ORDER BY r.created_at
    LIMIT 1 FOR UPDATE OF r SKIP LOCKED`);
   const job=found.rows[0];
-  if(job)await db.query("UPDATE ai_clip_requests SET status='processing',worker_started_at=now(),updated_at=now() WHERE id=$1",[job.id]);
+  if(job){await db.query("UPDATE ai_clip_requests SET status='processing',lease_id=$2,lease_expires_at=now()+($3::text||' milliseconds')::interval,worker_started_at=now(),updated_at=now() WHERE id=$1",[job.id,leaseId,LEASE_MS]);job.lease_id=leaseId;}
   await db.query('COMMIT');return job;
  }catch(error){await db.query('ROLLBACK').catch(()=>{});throw error;}
 }
@@ -61,13 +64,14 @@ async function claim(){
 async function failJob(job,message){
  await db.query('BEGIN');
  try{
-  await db.query("UPDATE ai_clip_requests SET status='failed',error_message=$2,updated_at=now() WHERE id=$1",[job.id,message]);
-  if(job.usage_ledger_id){
-   const ledger=(await db.query('SELECT * FROM ai_usage_ledger WHERE id=$1 FOR UPDATE',[job.usage_ledger_id])).rows[0];
+  const updated=await db.query("UPDATE ai_clip_requests SET status='failed',error_message=$3,lease_id=NULL,lease_expires_at=NULL,worker_started_at=NULL,updated_at=now() WHERE id=$1 AND lease_id=$2 AND status='processing' RETURNING usage_ledger_id",[job.id,job.lease_id,message]);
+  if(!updated.rowCount){await db.query('ROLLBACK');return;}
+  if(updated.rows[0].usage_ledger_id){
+   const ledger=(await db.query('SELECT * FROM ai_usage_ledger WHERE id=$1 FOR UPDATE',[updated.rows[0].usage_ledger_id])).rows[0];
    if(ledger?.status==='reserved'){
     const metadata=ledger.metadata||{};
     await db.query('UPDATE ai_usage_accounts SET free_units=free_units+$2,balance_units=balance_units+$3,updated_at=now() WHERE user_id=$1',[ledger.user_id,Number(metadata.freeUnits||0),Number(metadata.paidUnits||0)]);
-    await db.query("UPDATE ai_usage_ledger SET status='released' WHERE id=$1",[job.usage_ledger_id]);
+    await db.query("UPDATE ai_usage_ledger SET status='released' WHERE id=$1 AND status='reserved'",[updated.rows[0].usage_ledger_id]);
    }
   }
   await db.query('COMMIT');
@@ -86,11 +90,12 @@ async function persistOutput(job,outputPath,rendered){
   await db.query('BEGIN');
   const asset=await db.query(`INSERT INTO media_assets(owner_id,kind,object_key,sha256,mime,byte_size,status)
    VALUES($1,'clip',$2,$3,'video/mp4',$4,'verified') RETURNING id`,[job.user_id,objectKey,digest,fileStats.size]);
-  await db.query("UPDATE ai_clip_requests SET status='succeeded',output_asset_id=$2,output=$3,error_message=NULL,updated_at=now() WHERE id=$1",[job.id,asset.rows[0].id,JSON.stringify({duration:rendered.duration,aspectRatio:job.aspect_ratio,assetId:asset.rows[0].id})]);
-  const ledger=(await db.query("SELECT * FROM ai_usage_ledger WHERE id=$1 FOR UPDATE",[job.usage_ledger_id])).rows[0];
+  const updated=await db.query("UPDATE ai_clip_requests SET status='succeeded',output_asset_id=$2,output=$3,error_message=NULL,lease_id=NULL,lease_expires_at=NULL,worker_started_at=NULL,updated_at=now() WHERE id=$1 AND lease_id=$4 AND status='processing' RETURNING usage_ledger_id",[job.id,asset.rows[0].id,JSON.stringify({duration:rendered.duration,aspectRatio:job.aspect_ratio,assetId:asset.rows[0].id}),job.lease_id]);
+  if(!updated.rowCount)throw new Error('STALE_WORKER_LEASE');
+  const ledger=(await db.query("SELECT * FROM ai_usage_ledger WHERE id=$1 FOR UPDATE",[updated.rows[0].usage_ledger_id])).rows[0];
   if(ledger?.status==='reserved'){
    await db.query("UPDATE ai_usage_accounts SET consumed_units=consumed_units+$2,updated_at=now() WHERE user_id=$1",[ledger.user_id,ledger.units]);
-   await db.query("UPDATE ai_usage_ledger SET status='consumed' WHERE id=$1",[job.usage_ledger_id]);
+   await db.query("UPDATE ai_usage_ledger SET status='consumed' WHERE id=$1 AND status='reserved'",[updated.rows[0].usage_ledger_id]);
   }
   await db.query('COMMIT');
   return asset.rows[0].id;
@@ -127,7 +132,7 @@ async function processJob(job){
 
 await db.connect();
 // Recover requests abandoned by a killed worker after a bounded processing lease.
-await db.query("UPDATE ai_clip_requests SET status='queued',worker_started_at=NULL,updated_at=now() WHERE engine='native' AND status='processing' AND worker_started_at<now()-interval '12 hours'");
+await db.query("UPDATE ai_clip_requests SET status='queued',lease_id=NULL,lease_expires_at=NULL,worker_started_at=NULL,updated_at=now() WHERE engine='native' AND status='processing' AND lease_expires_at IS NOT NULL AND lease_expires_at<now()");
 await mkdir(root,{recursive:true,mode:0o700});
 const activeIds=new Set((await db.query("SELECT id FROM ai_clip_requests WHERE engine='native' AND status='processing'")).rows.map(row=>row.id));
 for(const entry of await readdir(root,{withFileTypes:true}))if(entry.isDirectory()&&!activeIds.has(entry.name)&&/^[0-9a-f-]{36}$/i.test(entry.name))await rm(path.join(root,entry.name),{recursive:true,force:true});

@@ -6,7 +6,8 @@ const bucket=process.env.MEDIA_BUCKET;
 const client=()=>new S3Client({region:process.env.MEDIA_REGION||'auto',endpoint:process.env.MEDIA_ENDPOINT||undefined,
  credentials:process.env.MEDIA_ACCESS_KEY_ID&&process.env.MEDIA_SECRET_ACCESS_KEY?{accessKeyId:process.env.MEDIA_ACCESS_KEY_ID,secretAccessKey:process.env.MEDIA_SECRET_ACCESS_KEY}:undefined,
  forcePathStyle:!!process.env.MEDIA_ENDPOINT});
-const local=(key:string)=>path.resolve(process.cwd(),'data/private',key);
+const privateRoot=path.resolve(process.cwd(),'data/private');
+const local=(key:string)=>{if(!/^[a-zA-Z0-9][a-zA-Z0-9._/-]{0,240}$/.test(key)||key.split('/').includes('..'))throw new Error('INVALID_MEDIA_KEY');const resolved=path.resolve(privateRoot,key);if(!resolved.startsWith(privateRoot+path.sep))throw new Error('INVALID_MEDIA_KEY');return resolved;};
 export async function putMedia(key:string,bytes:Buffer,mime:string){if(bucket){await client().send(new PutObjectCommand({Bucket:bucket,Key:key,Body:bytes,ContentType:mime,ServerSideEncryption:process.env.MEDIA_SSE==='AES256'?'AES256':undefined}));return;}
  await mkdir(path.dirname(local(key)),{recursive:true});await writeFile(local(key),bytes,{flag:'wx',mode:0o600});}
 export async function getMedia(key:string,range?:string){if(bucket){const response=await client().send(new GetObjectCommand({Bucket:bucket,Key:key,Range:range}));return {bytes:Buffer.from(await response.Body!.transformToByteArray()),contentRange:response.ContentRange};}

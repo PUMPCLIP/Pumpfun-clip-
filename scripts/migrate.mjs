@@ -1,11 +1,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import pg from 'pg';
+
 const client = new pg.Client({connectionString: process.env.DATABASE_URL});
 await client.connect();
 try {
+  await client.query('SELECT pg_advisory_lock(hashtextextended($1,0))', ['pumpclip-schema-migrations']);
   await client.query('CREATE TABLE IF NOT EXISTS schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())');
-  for (const name of fs.readdirSync('db/migrations').filter(n => n.endsWith('.sql')).sort()) {
+  const migrations=fs.readdirSync('db/migrations').filter(name=>/^\d+_.+\.sql$/.test(name)).sort();
+  for (const name of migrations) {
     const found = await client.query('SELECT 1 FROM schema_migrations WHERE name=$1', [name]);
     if (found.rowCount) continue;
     await client.query('BEGIN');
@@ -16,4 +19,7 @@ try {
       console.log('Applied', name);
     } catch (error) { await client.query('ROLLBACK'); throw error; }
   }
-} finally { await client.end(); }
+} finally {
+  await client.query('SELECT pg_advisory_unlock(hashtextextended($1,0))', ['pumpclip-schema-migrations']).catch(()=>{});
+  await client.end();
+}

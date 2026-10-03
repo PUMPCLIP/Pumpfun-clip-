@@ -6,7 +6,7 @@ import {PGlite} from '@electric-sql/pglite';
 test('database rejects wallet reuse, duplicate clip hashes and overreserved escrow',async()=>{
   const db=new PGlite();
   try {
-    for(const name of ['001_core.sql','002_studio.sql','003_rewards.sql','004_ai.sql','005_social.sql','006_tiktok.sql','007_youtube_uploads.sql','008_publications.sql','009_proof_and_operations.sql','011_feed_ai_usage.sql','012_native_video_clips.sql']) {
+    for(const name of ['001_core.sql','002_studio.sql','003_rewards.sql','004_ai.sql','005_social.sql','006_tiktok.sql','007_youtube_uploads.sql','008_publications.sql','009_proof_and_operations.sql','010_identity_and_payouts.sql','011_feed_ai_usage.sql','012_native_video_clips.sql','013_creator_workflow.sql','014_worker_leases.sql']) {
       const sql=readFileSync('db/migrations/'+name,'utf8').replace('CREATE EXTENSION IF NOT EXISTS pgcrypto;','');
       await db.exec(sql);
     }
@@ -39,7 +39,11 @@ test('database rejects wallet reuse, duplicate clip hashes and overreserved escr
     await db.query('INSERT INTO content_reports(reporter_id,submission_id,reason) VALUES($1,$2,$3)',[u1,submission,'Potential stolen content']);
     await assert.rejects(db.query('INSERT INTO content_reports(reporter_id,submission_id,reason) VALUES($1,$2,$3)',[u1,submission,'Duplicate report']));
     await assert.rejects(db.query('INSERT INTO user_rate_limits(user_id,action,request_count) VALUES($1,$2,0)',[u1,'upload']));
-    for(const name of ['012_native_video_clips.sql','011_feed_ai_usage.sql','009_proof_and_operations.sql','008_publications.sql','007_youtube_uploads.sql','006_tiktok.sql','005_social.sql','004_ai.sql','003_rewards.sql','002_studio.sql','001_core.sql']) await db.exec(readFileSync('db/migrations/down/'+name,'utf8'));
+    for(const name of ['014_worker_leases.sql','013_creator_workflow.sql','012_native_video_clips.sql','011_feed_ai_usage.sql','009_proof_and_operations.sql','008_publications.sql','007_youtube_uploads.sql','006_tiktok.sql','005_social.sql','004_ai.sql','003_rewards.sql','002_studio.sql','001_core.sql']) {
+      if(name==='014_worker_leases.sql') await db.exec('ALTER TABLE studio_jobs DROP COLUMN lease_id, DROP COLUMN lease_expires_at; ALTER TABLE ai_jobs DROP COLUMN lease_id, DROP COLUMN lease_expires_at; ALTER TABLE ai_clip_requests DROP COLUMN lease_id, DROP COLUMN lease_expires_at; DROP TABLE IF EXISTS payout_destinations;');
+      else if(name==='013_creator_workflow.sql') await db.exec('DROP TABLE campaign_disputes, campaign_messages, review_comments, submission_versions;');
+      else await db.exec(readFileSync('db/migrations/down/'+name,'utf8'));
+    }
     const tables=await db.query("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename IN ('users','campaigns','studio_jobs')");
     assert.equal(tables.rows.length,0);
   } finally {await db.close();}
@@ -68,4 +72,21 @@ test('native migration upgrades legacy provider jobs without losing credits',asy
     assert.equal((await db.query("SELECT action FROM ai_usage_ledger WHERE id=$1",[ledger])).rows[0].action,'native_clip');
     await assert.rejects(db.query('SELECT provider_job_id FROM ai_clip_requests'));
   }finally{await db.close();}
+});
+
+test('worker leases recover stale jobs and prevent stale settlement or double refunds',async()=>{
+  const db=new PGlite();
+  try{
+    for(const name of ['001_core.sql','002_studio.sql','003_rewards.sql','004_ai.sql','005_social.sql','006_tiktok.sql','007_youtube_uploads.sql','008_publications.sql','009_proof_and_operations.sql','010_identity_and_payouts.sql','011_feed_ai_usage.sql','012_native_video_clips.sql','013_creator_workflow.sql','014_worker_leases.sql']) await db.exec(readFileSync('db/migrations/'+name,'utf8').replace('CREATE EXTENSION IF NOT EXISTS pgcrypto;',''));
+    const user=(await db.query("INSERT INTO users(google_sub,email,display_name) VALUES('lease','lease@example.com','Lease') RETURNING id")).rows[0].id;
+    const asset=(await db.query("INSERT INTO media_assets(owner_id,kind,object_key,mime,byte_size) VALUES($1,'source','lease-source','video/mp4',100) RETURNING id",[user])).rows[0].id;
+    await db.query("INSERT INTO ai_usage_accounts(user_id,balance_units) VALUES($1,5)",[user]);
+    const ledger=(await db.query("INSERT INTO ai_usage_ledger(user_id,action,units,status,idempotency_key,metadata) VALUES($1,'native_clip',5,'reserved','lease-key',$2) RETURNING id",[user,JSON.stringify({freeUnits:0,paidUnits:5})])).rows[0].id;
+    const request=(await db.query("INSERT INTO ai_clip_requests(user_id,source_asset_id,usage_ledger_id,status,engine,lease_id,lease_expires_at) VALUES($1,$2,$3,'processing','native','00000000-0000-0000-0000-000000000001',now()-interval '1 minute') RETURNING id",[user,asset,ledger])).rows[0].id;
+    await db.query("UPDATE ai_clip_requests SET status='queued',lease_id=NULL,lease_expires_at=NULL WHERE status='processing' AND lease_expires_at<now()");
+    assert.equal((await db.query("UPDATE ai_clip_requests SET status='processing',lease_id='00000000-0000-0000-0000-000000000002' WHERE id=$1 AND status='queued' RETURNING id",[request])).rowCount,1);
+    assert.equal((await db.query("UPDATE ai_clip_requests SET status='failed' WHERE id=$1 AND lease_id='00000000-0000-0000-0000-000000000001'",[request])).rowCount,0);
+    assert.equal((await db.query("UPDATE ai_usage_ledger SET status='released' WHERE id=$1 AND status='reserved'",[ledger])).rowCount,1);
+    assert.equal((await db.query("UPDATE ai_usage_ledger SET status='released' WHERE id=$1 AND status='reserved'",[ledger])).rowCount,0);
+  } finally {await db.close();}
 });

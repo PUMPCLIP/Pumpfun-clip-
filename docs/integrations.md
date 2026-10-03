@@ -52,7 +52,9 @@ The studio offers classic, bold and signal caption presets and burns the selecte
 
 Provision an HTTPS domain, managed PostgreSQL 16 with backups, a private S3-compatible bucket, dedicated Solana RPC, Google OAuth keys, AI provider key and token encryption key. Set `APP_URL` to the exact HTTPS origin and `DATABASE_URL` to the database service. Copy `.env.example` to `.env.deploy` and fill every required value without committing it. Run `docker compose --env-file .env.deploy -f compose.deploy.yml up --build -d`. It runs migrations, the web app, render worker, AI worker and a PostgreSQL container, exposing port 3000 only on loopback. Add a TLS reverse proxy, durable database backups, bucket lifecycle/retention, logs/metrics/alerts, secret rotation, media scanning and a restore test before public traffic. The compose file is a staging template and is not a provisioned production deployment.
 
-Run `npm run readiness` in staging to check configuration, schema, RPC cluster, bucket and FFmpeg. This is a preflight check, not an end-to-end test. Use distinct live Google accounts, separate wallets and real platform approvals for the manual staging journey; those credentials are not present in this repository.
+For Render, do not deploy the Compose file directly. Create separate Dockerfile-backed web and background-worker services with `npm run worker`, `npm run worker:native`, and optional `npm run worker:ai`; run `npm run db:migrate` as a one-off job or deploy hook before enabling the services. See [Render closed-pilot staging guide](render-staging.md).
+
+Run `READINESS_MODE=core npm run readiness` in staging to check core configuration, schema, RPC cluster, private bucket and FFmpeg. Use `READINESS_MODE=full` only when AI and every enabled social integration are provisioned. This is a preflight check, not an end-to-end test. Use distinct live Google accounts, separate wallets and real platform approvals for the manual staging journey; those credentials are not present in this repository.
 
 ### External managed PostgreSQL and HTTPS staging
 

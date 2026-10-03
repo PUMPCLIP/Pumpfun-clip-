@@ -36,6 +36,26 @@ def allowed_video_url(value: str) -> bool:
         return False
 
 
+def public_addresses(addresses: set[str] | list[str] | tuple[str, ...]) -> bool:
+    """Return true only when every resolved address is globally routable."""
+    try:
+        parsed = [ipaddress.ip_address(address) for address in addresses]
+    except ValueError:
+        return False
+    return bool(parsed) and all(address.is_global for address in parsed)
+
+
+def validate_download_url(value: str) -> None:
+    """Reject extractor/CDN URLs that leave HTTPS or resolve to private space."""
+    parsed = urlparse(value)
+    if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.port not in (None, 443):
+        raise ValueError("The extractor returned an unsupported or unsafe download URL")
+    host = parsed.hostname
+    addresses = {item[4][0] for item in socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)}
+    if not public_addresses(addresses):
+        raise ValueError("The download URL must resolve only to public internet addresses")
+
+
 def parse_time(value: str) -> float:
     value = value.strip()
     if re.fullmatch(r"\d+(?:\.\d+)?", value):
@@ -98,7 +118,7 @@ def download_video(url: str, output: str | Path) -> Path:
         addresses = {item[4][0] for item in socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)}
     except OSError as exc:
         raise ValueError("The video host could not be resolved") from exc
-    if not addresses or any(not ipaddress.ip_address(address).is_global for address in addresses):
+    if not public_addresses(addresses):
         raise ValueError("The video URL must resolve only to public internet addresses")
     try:
         import yt_dlp
@@ -107,6 +127,10 @@ def download_video(url: str, output: str | Path) -> Path:
 
     target = Path(output).resolve()
     target.parent.mkdir(parents=True, exist_ok=True)
+    def download_hook(status):
+        if status.get("status") == "downloading" and status.get("info_dict", {}).get("url"):
+            validate_download_url(status["info_dict"]["url"])
+
     options = {
         "format": "best[ext=mp4]/best",
         "outtmpl": str(target) + ".%(ext)s",
@@ -119,6 +143,7 @@ def download_video(url: str, output: str | Path) -> Path:
         "max_filesize": MAX_SOURCE_BYTES,
         "allowed_extractors": ["Youtube", "TikTok", "Instagram", "Twitter"],
         "cachedir": False,
+        "progress_hooks": [download_hook],
     }
     with yt_dlp.YoutubeDL(options) as downloader:
         info = downloader.extract_info(url, download=True)
