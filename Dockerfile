@@ -10,6 +10,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg ca-certi
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build /app ./
+RUN mkdir -p .next/standalone/.next && \
+    cp -R .next/static .next/standalone/.next/static && \
+    if [ -d public ]; then cp -R public .next/standalone/public; fi
 RUN python3 -m venv /opt/pumpclip-video && /opt/pumpclip-video/bin/pip install --no-cache-dir -r requirements-video.txt && \
     mkdir -p data/private && chown -R node:node /app
 ENV PUMPCLIP_PYTHON=/opt/pumpclip-video/bin/python
