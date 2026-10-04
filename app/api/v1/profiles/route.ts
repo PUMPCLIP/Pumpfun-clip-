@@ -1,5 +1,5 @@
 import {db} from '@/lib/db';
-import {jsonError} from '@/lib/auth';
+import {ApiError,jsonError} from '@/lib/auth';
 
 export const runtime='nodejs';
 
@@ -31,5 +31,5 @@ export async function GET(request:Request){
       ORDER BY COALESCE(r.total_views,0) DESC,u.display_name ASC
       LIMIT $2`,[roles,limit]);
     return Response.json({items:rows.rows});
-  }catch(error){return jsonError(error,crypto.randomUUID());}
+  }catch(error){return jsonError(error instanceof ApiError?error:new ApiError('NETWORK_UNAVAILABLE',503,'Creator network is temporarily unavailable.'),crypto.randomUUID());}
 }
