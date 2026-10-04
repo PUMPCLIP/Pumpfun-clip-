@@ -8,7 +8,7 @@ export default function Providers({children}:{children:React.ReactNode}) {
   if(!appId) return <>{children}</>;
   return <PrivyProvider appId={appId} config={{
     loginMethods:['email','google','twitter','wallet'],
-    appearance:{theme:'dark',accentColor:'#a8e063',logo:'/icon.svg'},
+    appearance:{theme:'dark',accentColor:'#a8e063',logo:'/pumpclips-mark.jpg'},
     embeddedWallets:{solana:{createOnLogin:'users-without-wallets'}},
   }}><PrivySessionBridge>{children}</PrivySessionBridge></PrivyProvider>;
 }
