@@ -9,6 +9,7 @@ FROM node:24-bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg ca-certificates python3 python3-venv && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV NODE_ENV=production
+ENV HOSTNAME=0.0.0.0
 COPY --from=build /app ./
 RUN mkdir -p .next/standalone/.next && \
     cp -R .next/static .next/standalone/.next/static && \
@@ -18,4 +19,4 @@ RUN python3 -m venv /opt/pumpclip-video && /opt/pumpclip-video/bin/pip install -
 ENV PUMPCLIP_PYTHON=/opt/pumpclip-video/bin/python
 USER node
 EXPOSE 3000
-CMD ["npm","run","start"]
+CMD ["sh","-c","exec node .next/standalone/server.js"]

@@ -5,7 +5,7 @@
     "dockerfilePath": "Dockerfile"
   },
   "deploy": {
-    "startCommand": "npm run start",
+    "startCommand": "HOSTNAME=0.0.0.0 node .next/standalone/server.js",
     "preDeployCommand": ["npm run db:migrate"],
     "healthcheckPath": "/api/health",
     "healthcheckTimeout": 300,
