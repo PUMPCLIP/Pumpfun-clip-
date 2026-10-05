@@ -10,8 +10,7 @@ FROM node:24-bookworm-slim AS builder
 WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
-    NEXT_DISABLE_ESLINT=1 \
-    NODE_OPTIONS=--max-old-space-size=384
+    NEXT_DISABLE_ESLINT=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json package-lock.json ./
 COPY next.config.js tsconfig.json ./
