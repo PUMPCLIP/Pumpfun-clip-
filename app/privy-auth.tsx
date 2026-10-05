@@ -14,7 +14,13 @@ export default function PrivySessionBridge({children}:{children:React.ReactNode}
         if(!token) return;
         const identityToken=await getIdentityToken();
         const response=await fetch('/api/v1/auth/privy',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({accessToken:token,identityToken})});
-        if(!response.ok && active) console.error('Privy session sync failed',await response.text());
+        if(response.ok){
+          const selectedRole=window.localStorage.getItem('pumpclips_signup_role');
+          if(selectedRole==='streamer'||selectedRole==='clipper'){
+            await fetch('/api/v1/me/roles',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({roles:[selectedRole]})});
+            window.localStorage.removeItem('pumpclips_signup_role');
+          }
+        } else if(active) console.error('Privy session sync failed',await response.text());
       } catch(error) { if(active) console.error('Privy session sync failed',error); }
     })();
     return()=>{active=false;};
