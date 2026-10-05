@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "node scripts/cloudflare-build.mjs",
+    "build:render": "next build",
     "cf-build": "node scripts/cloudflare-build.mjs",
     "preview": "npm run build && opennextjs-cloudflare preview",
     "deploy": "npm run build && wrangler deploy",
