@@ -1,6 +1,11 @@
 import {Pool, PoolClient, QueryResultRow} from 'pg';
+
+const databaseUrl=process.env.DATABASE_URL||'';
+const requiresTls=/[?&]sslmode=(require|verify-ca|verify-full)(?:&|$)/i.test(databaseUrl);
+const ssl=process.env.DATABASE_SSL==='disable'?undefined:(requiresTls||process.env.DATABASE_SSL==='require'?{rejectUnauthorized:false}:undefined);
+
 const globalDb = globalThis as unknown as {pumpclipPool?: Pool};
-export const db = globalDb.pumpclipPool ||= new Pool({connectionString:process.env.DATABASE_URL});
+export const db = globalDb.pumpclipPool ||= new Pool({connectionString:databaseUrl,ssl,max:Number(process.env.DATABASE_POOL_MAX||10),connectionTimeoutMillis:10000,idleTimeoutMillis:30000});
 export type Conn = Pool | PoolClient;
 export async function one<T extends QueryResultRow = QueryResultRow>(sql:string, values:unknown[]=[], conn:Conn=db):Promise<T|null> {
   const r = await conn.query<T>(sql,values); return r.rows[0] || null;

@@ -29,7 +29,8 @@ export async function POST(request:Request) {
     const kind=form.get('kind');
     if(kind!=='source' && kind!=='clip') throw new ApiError('INVALID_MEDIA_KIND');
     if(kind==='source' && (form.get('rightsDeclared')!=='true' || !user.roles.includes('streamer'))) throw new ApiError('SOURCE_RIGHTS_REQUIRED',422);
-    await gate(user.user_id,kind==='source'?'streamer':'clipper');
+    if(kind==='source') await gate(user.user_id,'streamer');
+    else if(!user.roles.includes('clipper') && !user.roles.includes('streamer')) throw new ApiError('ROLE_REQUIRED',403);
     await rateLimit(user.user_id,'media-upload',12,3600);
     await mkdir(storage,{recursive:true});
     const key=crypto.randomUUID()+'.bin', location=path.join(storage,key), bytes=Buffer.from(await file.arrayBuffer());
