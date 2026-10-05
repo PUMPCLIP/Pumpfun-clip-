@@ -1,0 +1,1 @@
+{"routes":[{"path":"/","title":"Home"},{"path":"/auth","title":"Sign in"},{"path":"/dashboard","title":"Workspace"},{"path":"/feed","title":"Discovery feed"},{"path":"/people","title":"Creators and clippers"},{"path":"/profile/:id","title":"Profile"},{"path":"/studio/:id","title":"Studio"}]}

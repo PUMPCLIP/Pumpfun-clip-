@@ -142,3 +142,17 @@ html{background:var(--brand-bg);color-scheme:dark}body{background:var(--brand-bg
 body{margin:0}
 
 @media(max-width:760px){.demo-sticker{right:0}}
+
+/* Performance guardrails: below-the-fold sections keep their geometry while data/media hydrate. */
+.opus-showcase,.opus-network{content-visibility:auto;contain-intrinsic-size:0 720px}
+.opus-people-grid-rich{min-height:420px}
+.opus-person{min-height:88px}
+.opus-person-avatar{width:56px;height:56px;aspect-ratio:1;flex:0 0 56px}
+.opus-clip{contain:layout paint}
+@media(max-width:760px){
+  .opus-showcase{min-height:690px}
+  .opus-network{min-height:820px}
+  .opus-people-grid-rich{min-height:720px}
+  .opus-person{min-height:88px}
+  .opus-person-avatar{width:52px;height:52px;flex-basis:52px}
+}
