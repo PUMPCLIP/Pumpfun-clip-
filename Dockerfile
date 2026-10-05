@@ -47,4 +47,4 @@ RUN python3 -m venv /opt/pumpclip-video \
 ENV PUMPCLIP_PYTHON=/opt/pumpclip-video/bin/python
 USER node
 EXPOSE 3000
-CMD ["node", "server.js"]
+CMD ["node", "scripts/render-entrypoint.mjs"]

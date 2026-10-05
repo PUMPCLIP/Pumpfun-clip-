@@ -10,7 +10,7 @@ import socket
 import subprocess
 import sys
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunsplit
 
 MAX_SOURCE_BYTES = 512 * 1024 * 1024
 MAX_SOURCE_SECONDS = 4 * 60 * 60
@@ -281,6 +281,9 @@ def main() -> None:
     chunks.add_argument("--input", required=True)
     chunks.add_argument("--output-dir", required=True)
     chunks.add_argument("--seconds", type=int, default=600)
+    channel = sub.add_parser("channel-list")
+    channel.add_argument("--url", required=True)
+    channel.add_argument("--max-videos", type=int, default=100)
     render = sub.add_parser("render")
     render.add_argument("--input", required=True)
     render.add_argument("--output", required=True)
@@ -292,7 +295,9 @@ def main() -> None:
     render.add_argument("--caption-style", default="classic", choices=("classic", "bold", "signal"))
     args = parser.parse_args()
     try:
-        if args.command == "download":
+        if args.command == "channel-list":
+            payload = {"videos": list_channel_videos(args.url, args.max_videos)}
+        elif args.command == "download":
             result = download_video(args.url, args.output)
             payload = {"path": str(result), **probe_video(result)}
         elif args.command == "probe":
@@ -318,6 +323,41 @@ def main() -> None:
         print(json.dumps({"error": str(exc)}), file=sys.stderr)
         raise SystemExit(1)
 
+
+def list_channel_videos(url: str, max_videos: int = 100) -> list[dict]:
+    """Enumerate video URLs without downloading media."""
+    if max_videos < 1 or max_videos > 500:
+        raise ValueError("max_videos must be between 1 and 500")
+    if not re.match(r"^https?://(www\.)?(youtube\.com|m\.youtube\.com|youtu\.be)/", url, re.I):
+        raise ValueError("Only YouTube channel URLs are supported for channel ingestion")
+    try:
+        import yt_dlp
+    except ImportError as exc:
+        raise RuntimeError("Install the pinned packages from requirements-video.txt") from exc
+    options = {
+        "quiet": True, "no_warnings": True, "skip_download": True,
+        "extract_flat": "in_playlist", "playlistend": max_videos,
+        "noplaylist": False,
+    }
+    parsed_url = urlparse(url)
+    channel_path = parsed_url.path.rstrip('/')
+    if not re.search(r'/videos$', channel_path, re.I):
+        url = urlunsplit((parsed_url.scheme, parsed_url.netloc, channel_path + '/videos', '', ''))
+    with yt_dlp.YoutubeDL(options) as ydl:
+        info = ydl.extract_info(url, download=False)
+    entries = info.get("entries") or []
+    result = []
+    for position, entry in enumerate(entries):
+        if not entry:
+            continue
+        video_id = str(entry.get("id") or "").strip()
+        if not video_id:
+            continue
+        source_url = entry.get("webpage_url") or entry.get("url")
+        if not source_url or not str(source_url).startswith(("http://", "https://")):
+            source_url = f"https://www.youtube.com/watch?v={video_id}"
+        result.append({"externalId": video_id, "sourceUrl": str(source_url), "title": str(entry.get("title") or "Untitled video")[:500], "position": position})
+    return result
 
 if __name__ == "__main__":
     main()

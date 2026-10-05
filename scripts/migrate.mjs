@@ -2,7 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import pg from 'pg';
 
-const client = new pg.Client({connectionString: process.env.DATABASE_URL});
+const databaseUrl=process.env.DATABASE_URL||'';
+const ssl=process.env.DATABASE_SSL==='disable'?undefined:(process.env.DATABASE_SSL==='require'||/[?&]sslmode=(require|verify-ca|verify-full)(?:&|$)/i.test(databaseUrl)?{rejectUnauthorized:false}:undefined);
+const client = new pg.Client({connectionString:databaseUrl,ssl,connectionTimeoutMillis:10000});
 await client.connect();
 try {
   await client.query('SELECT pg_advisory_lock(hashtextextended($1,0))', ['pumpclip-schema-migrations']);

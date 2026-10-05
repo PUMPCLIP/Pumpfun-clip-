@@ -8,7 +8,9 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {S3Client,GetObjectCommand,PutObjectCommand,DeleteObjectCommand} from '@aws-sdk/client-s3';
 
-const db=new pg.Client({connectionString:process.env.DATABASE_URL});
+const databaseUrl=process.env.DATABASE_URL||'';
+const ssl=process.env.DATABASE_SSL==='disable'?undefined:(process.env.DATABASE_SSL==='require'||/[?&]sslmode=(require|verify-ca|verify-full)(?:&|$)/i.test(databaseUrl)?{rejectUnauthorized:false}:undefined);
+const db=new pg.Client({connectionString:databaseUrl,ssl,connectionTimeoutMillis:10000});
 const root=path.resolve(process.env.VIDEO_WORKDIR||'data/private/native-clips');
 const LEASE_MS=Number(process.env.WORKER_LEASE_MS||15*60*1000);
 const python=process.env.PUMPCLIP_PYTHON||'python3';
@@ -64,8 +66,9 @@ async function claim(){
 async function failJob(job,message){
  await db.query('BEGIN');
  try{
-  const updated=await db.query("UPDATE ai_clip_requests SET status='failed',error_message=$3,lease_id=NULL,lease_expires_at=NULL,worker_started_at=NULL,updated_at=now() WHERE id=$1 AND lease_id=$2 AND status='processing' RETURNING usage_ledger_id",[job.id,job.lease_id,message]);
+  const updated=await db.query("UPDATE ai_clip_requests SET status='failed',error_message=$3,lease_id=NULL,lease_expires_at=NULL,worker_started_at=NULL,updated_at=now() WHERE id=$1 AND lease_id=$2 AND status='processing' RETURNING usage_ledger_id,channel_video_id",[job.id,job.lease_id,message]);
   if(!updated.rowCount){await db.query('ROLLBACK');return;}
+  if(updated.rows[0].channel_video_id)await db.query("UPDATE channel_ingestion_videos SET status='failed',error_message=$2,updated_at=now() WHERE id=$1",[updated.rows[0].channel_video_id,message]);
   if(updated.rows[0].usage_ledger_id){
    const ledger=(await db.query('SELECT * FROM ai_usage_ledger WHERE id=$1 FOR UPDATE',[updated.rows[0].usage_ledger_id])).rows[0];
    if(ledger?.status==='reserved'){
@@ -90,8 +93,9 @@ async function persistOutput(job,outputPath,rendered){
   await db.query('BEGIN');
   const asset=await db.query(`INSERT INTO media_assets(owner_id,kind,object_key,sha256,mime,byte_size,status)
    VALUES($1,'clip',$2,$3,'video/mp4',$4,'verified') RETURNING id`,[job.user_id,objectKey,digest,fileStats.size]);
-  const updated=await db.query("UPDATE ai_clip_requests SET status='succeeded',output_asset_id=$2,output=$3,error_message=NULL,lease_id=NULL,lease_expires_at=NULL,worker_started_at=NULL,updated_at=now() WHERE id=$1 AND lease_id=$4 AND status='processing' RETURNING usage_ledger_id",[job.id,asset.rows[0].id,JSON.stringify({duration:rendered.duration,aspectRatio:job.aspect_ratio,assetId:asset.rows[0].id}),job.lease_id]);
+  const updated=await db.query("UPDATE ai_clip_requests SET status='succeeded',output_asset_id=$2,output=$3,error_message=NULL,lease_id=NULL,lease_expires_at=NULL,worker_started_at=NULL,updated_at=now() WHERE id=$1 AND lease_id=$4 AND status='processing' RETURNING usage_ledger_id,channel_video_id",[job.id,asset.rows[0].id,JSON.stringify({duration:rendered.duration,aspectRatio:job.aspect_ratio,assetId:asset.rows[0].id}),job.lease_id]);
   if(!updated.rowCount)throw new Error('STALE_WORKER_LEASE');
+  if(updated.rows[0].channel_video_id)await db.query("UPDATE channel_ingestion_videos SET status='succeeded',error_message=NULL,updated_at=now() WHERE id=$1",[updated.rows[0].channel_video_id]);
   const ledger=(await db.query("SELECT * FROM ai_usage_ledger WHERE id=$1 FOR UPDATE",[updated.rows[0].usage_ledger_id])).rows[0];
   if(ledger?.status==='reserved'){
    await db.query("UPDATE ai_usage_accounts SET consumed_units=consumed_units+$2,updated_at=now() WHERE user_id=$1",[ledger.user_id,ledger.units]);

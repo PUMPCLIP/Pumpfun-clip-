@@ -18,6 +18,7 @@
     "worker": "node scripts/worker.mjs",
     "worker:ai": "node scripts/ai-worker.mjs",
     "worker:native": "node scripts/native-worker.mjs",
+    "worker:channel": "node scripts/channel-worker.mjs",
     "token": "node scripts/token.mjs",
     "token:policy": "node scripts/policy.mjs",
     "payout": "node scripts/payout.mjs",
