@@ -34,6 +34,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg ca-certificates python3 python3-venv \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/.next/standalone ./
+COPY --from=deps /app/node_modules/@aws-sdk/s3-request-presigner ./node_modules/@aws-sdk/s3-request-presigner
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/package.json ./package.json
