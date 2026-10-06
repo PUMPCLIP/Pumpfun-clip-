@@ -6,12 +6,14 @@ import {PGlite} from '@electric-sql/pglite';
 test('database rejects wallet reuse, duplicate clip hashes and overreserved escrow',async()=>{
   const db=new PGlite();
   try {
-    for(const name of ['001_core.sql','002_studio.sql','003_rewards.sql','004_ai.sql','005_social.sql','006_tiktok.sql','007_youtube_uploads.sql','008_publications.sql','009_proof_and_operations.sql','010_identity_and_payouts.sql','011_feed_ai_usage.sql','012_native_video_clips.sql','013_creator_workflow.sql','014_worker_leases.sql']) {
+    for(const name of ['001_core.sql','002_studio.sql','003_rewards.sql','004_ai.sql','005_social.sql','006_tiktok.sql','007_youtube_uploads.sql','008_publications.sql','009_proof_and_operations.sql','010_identity_and_payouts.sql','011_feed_ai_usage.sql','012_native_video_clips.sql','013_creator_workflow.sql','014_worker_leases.sql','016_supabase_auth_identity.sql']) {
       const sql=readFileSync('db/migrations/'+name,'utf8').replace('CREATE EXTENSION IF NOT EXISTS pgcrypto;','');
       await db.exec(sql);
     }
     const u1=(await db.query("INSERT INTO users(google_sub,email,display_name) VALUES('g1','one@example.com','One') RETURNING id")).rows[0].id;
     const u2=(await db.query("INSERT INTO users(google_sub,email,display_name) VALUES('g2','two@example.com','Two') RETURNING id")).rows[0].id;
+    await db.query('UPDATE users SET supabase_user_id=$2 WHERE id=$1',[u1,'supabase-user-1']);
+    await assert.rejects(db.query('UPDATE users SET supabase_user_id=$2 WHERE id=$1',[u2,'supabase-user-1']));
     await db.query('INSERT INTO wallets(user_id,address,network) VALUES($1,$2,$3)',[u1,'wallet-one','devnet']);
     await assert.rejects(db.query('INSERT INTO wallets(user_id,address,network) VALUES($1,$2,$3)',[u2,'wallet-one','devnet']));
     const c=(await db.query('INSERT INTO campaigns(streamer_id,title) VALUES($1,$2) RETURNING id',[u1,'First campaign'])).rows[0].id;
@@ -39,8 +41,9 @@ test('database rejects wallet reuse, duplicate clip hashes and overreserved escr
     await db.query('INSERT INTO content_reports(reporter_id,submission_id,reason) VALUES($1,$2,$3)',[u1,submission,'Potential stolen content']);
     await assert.rejects(db.query('INSERT INTO content_reports(reporter_id,submission_id,reason) VALUES($1,$2,$3)',[u1,submission,'Duplicate report']));
     await assert.rejects(db.query('INSERT INTO user_rate_limits(user_id,action,request_count) VALUES($1,$2,0)',[u1,'upload']));
-    for(const name of ['014_worker_leases.sql','013_creator_workflow.sql','012_native_video_clips.sql','011_feed_ai_usage.sql','009_proof_and_operations.sql','008_publications.sql','007_youtube_uploads.sql','006_tiktok.sql','005_social.sql','004_ai.sql','003_rewards.sql','002_studio.sql','001_core.sql']) {
-      if(name==='014_worker_leases.sql') await db.exec('ALTER TABLE studio_jobs DROP COLUMN lease_id, DROP COLUMN lease_expires_at; ALTER TABLE ai_jobs DROP COLUMN lease_id, DROP COLUMN lease_expires_at; ALTER TABLE ai_clip_requests DROP COLUMN lease_id, DROP COLUMN lease_expires_at; DROP TABLE IF EXISTS payout_destinations;');
+    for(const name of ['016_supabase_auth_identity.sql','014_worker_leases.sql','013_creator_workflow.sql','012_native_video_clips.sql','011_feed_ai_usage.sql','009_proof_and_operations.sql','008_publications.sql','007_youtube_uploads.sql','006_tiktok.sql','005_social.sql','004_ai.sql','003_rewards.sql','002_studio.sql','001_core.sql']) {
+      if(name==='016_supabase_auth_identity.sql') await db.exec(readFileSync('db/migrations/down/'+name,'utf8'));
+      else if(name==='014_worker_leases.sql') await db.exec('ALTER TABLE studio_jobs DROP COLUMN lease_id, DROP COLUMN lease_expires_at; ALTER TABLE ai_jobs DROP COLUMN lease_id, DROP COLUMN lease_expires_at; ALTER TABLE ai_clip_requests DROP COLUMN lease_id, DROP COLUMN lease_expires_at; DROP TABLE IF EXISTS payout_destinations;');
       else if(name==='013_creator_workflow.sql') await db.exec('DROP TABLE campaign_disputes, campaign_messages, review_comments, submission_versions;');
       else await db.exec(readFileSync('db/migrations/down/'+name,'utf8'));
     }
@@ -77,7 +80,7 @@ test('native migration upgrades legacy provider jobs without losing credits',asy
 test('worker leases recover stale jobs and prevent stale settlement or double refunds',async()=>{
   const db=new PGlite();
   try{
-    for(const name of ['001_core.sql','002_studio.sql','003_rewards.sql','004_ai.sql','005_social.sql','006_tiktok.sql','007_youtube_uploads.sql','008_publications.sql','009_proof_and_operations.sql','010_identity_and_payouts.sql','011_feed_ai_usage.sql','012_native_video_clips.sql','013_creator_workflow.sql','014_worker_leases.sql']) await db.exec(readFileSync('db/migrations/'+name,'utf8').replace('CREATE EXTENSION IF NOT EXISTS pgcrypto;',''));
+    for(const name of ['001_core.sql','002_studio.sql','003_rewards.sql','004_ai.sql','005_social.sql','006_tiktok.sql','007_youtube_uploads.sql','008_publications.sql','009_proof_and_operations.sql','010_identity_and_payouts.sql','011_feed_ai_usage.sql','012_native_video_clips.sql','013_creator_workflow.sql','014_worker_leases.sql','016_supabase_auth_identity.sql']) await db.exec(readFileSync('db/migrations/'+name,'utf8').replace('CREATE EXTENSION IF NOT EXISTS pgcrypto;',''));
     const user=(await db.query("INSERT INTO users(google_sub,email,display_name) VALUES('lease','lease@example.com','Lease') RETURNING id")).rows[0].id;
     const asset=(await db.query("INSERT INTO media_assets(owner_id,kind,object_key,mime,byte_size) VALUES($1,'source','lease-source','video/mp4',100) RETURNING id",[user])).rows[0].id;
     await db.query("INSERT INTO ai_usage_accounts(user_id,balance_units) VALUES($1,5)",[user]);

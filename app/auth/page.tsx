@@ -1,7 +1,8 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import type { Session } from '@supabase/supabase-js';
 
 type AuthNotice = { kind: 'success' | 'error' | 'info'; text: string } | null;
 
@@ -11,9 +12,40 @@ export default function AuthPage() {
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<'streamer' | 'clipper'>('clipper');
   const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
+  const [appUrl, setAppUrl] = useState('https://pumpclip.app');
   const [configLoading, setConfigLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<AuthNotice>(null);
+  const syncing = useRef(false);
+  const redirecting = useRef(false);
+
+  const completeServerSignIn = useCallback(async (session: Session) => {
+    if (syncing.current || redirecting.current) return;
+    syncing.current = true;
+    setBusy(true);
+    setNotice({ kind: 'info', text: 'Finishing secure sign-in…' });
+    try {
+      const response = await fetch('/api/v1/auth/supabase', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${session.access_token}`,
+        },
+        body: '{}',
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.message || result.code || 'Could not start your workspace session.');
+      redirecting.current = true;
+      setNotice({ kind: 'success', text: 'Signed in successfully. Opening your workspace…' });
+      window.location.replace('/dashboard');
+    } catch (error) {
+      setNotice({ kind: 'error', text: error instanceof Error ? error.message : 'Could not start your workspace session.' });
+    } finally {
+      syncing.current = false;
+      setBusy(false);
+    }
+  }, []);
 
   useEffect(() => {
     const savedRole = window.localStorage.getItem('pumpclips_signup_role');
@@ -22,7 +54,7 @@ export default function AuthPage() {
     const params = new URLSearchParams(window.location.search);
     if (params.get('mode') === 'signup') setMode('signup');
     if (params.get('confirmed') === '1') {
-      setNotice({ kind: 'success', text: 'Email confirmed. Sign in to continue.' });
+      setNotice({ kind: 'success', text: 'Email confirmed. Your workspace is ready.' });
     }
     const authError = params.get('error');
     if (authError === 'google_not_configured') {
@@ -40,17 +72,18 @@ export default function AuthPage() {
         if (!response.ok || !config.url || !config.anonKey) {
           throw new Error(config.message || 'Authentication is not configured yet. Add the Supabase URL and anon key to the deployment environment.');
         }
+        if (typeof config.appUrl === 'string' && config.appUrl) setAppUrl(config.appUrl);
         const client = createClient(config.url, config.anonKey, {
           auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
         });
         if (cancelled) return;
         setSupabase(client);
         const { data: listener } = client.auth.onAuthStateChange((_event, session) => {
-          if (session) window.location.replace('/dashboard');
+          if (session) window.setTimeout(() => { void completeServerSignIn(session); }, 0);
         });
         unsubscribe = () => listener.subscription.unsubscribe();
         const { data } = await client.auth.getSession();
-        if (data.session && !cancelled) window.location.replace('/dashboard');
+        if (data.session && !cancelled) await completeServerSignIn(data.session);
       } catch (error) {
         if (!cancelled) {
           setNotice({ kind: 'error', text: error instanceof Error ? error.message : 'Authentication setup is unavailable.' });
@@ -64,7 +97,7 @@ export default function AuthPage() {
       cancelled = true;
       unsubscribe?.();
     };
-  }, []);
+  }, [completeServerSignIn]);
 
   const chooseRole = (value: 'streamer' | 'clipper') => {
     setRole(value);
@@ -86,7 +119,7 @@ export default function AuthPage() {
           email: normalizedEmail,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/auth?confirmed=1`,
+            emailRedirectTo: `${appUrl}/auth?confirmed=1`,
             data: { role },
           },
         });
@@ -94,14 +127,13 @@ export default function AuthPage() {
         if (!data.session) {
           setNotice({ kind: 'success', text: 'Account created. Check your inbox for a confirmation email, then return here to sign in.' });
         } else {
-          setNotice({ kind: 'success', text: 'Your account is ready. Opening your workspace…' });
-          window.location.replace('/dashboard');
+          await completeServerSignIn(data.session);
         }
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
         if (error) throw error;
-        setNotice({ kind: 'success', text: 'Signed in successfully. Opening your workspace…' });
-        window.location.replace('/dashboard');
+        if (!data.session) throw new Error('Supabase did not return a sign-in session. Please try again.');
+        await completeServerSignIn(data.session);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Authentication failed. Please try again.';
@@ -120,7 +152,7 @@ export default function AuthPage() {
     setBusy(true);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth` },
+      options: { redirectTo: `${appUrl}/auth` },
     });
     if (error) {
       setNotice({ kind: 'error', text: error.message || 'Google sign-in failed. Please try again.' });

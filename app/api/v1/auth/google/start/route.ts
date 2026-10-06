@@ -1,7 +1,8 @@
 import {cookies} from 'next/headers';
 import {random} from '@/lib/auth';
+import {config} from '@/lib/config';
 export async function GET(request:Request) {
-  const appUrl=process.env.APP_URL || new URL(request.url).origin;
+  const appUrl=config.appUrl;
   if(!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) return Response.redirect(appUrl+'/auth?error=google_not_configured');
   const state=random(),nonce=random(), c=await cookies();
   c.set('pc_oauth_state',state,{httpOnly:true,secure:appUrl.startsWith('https:'),sameSite:'lax',maxAge:600,path:'/'});

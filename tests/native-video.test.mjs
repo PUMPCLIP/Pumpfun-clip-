@@ -50,6 +50,12 @@ with tempfile.TemporaryDirectory(prefix='pumpclip-video-test-') as tmp:
         assert (dimensions['width'],dimensions['height'])==engine.ASPECTS[aspect]
         rendered=engine.probe_video(output)
         assert abs(rendered['duration']-2.0)<0.15
+    silent=tmp/'silent.mp4'
+    subprocess.run(['ffmpeg','-hide_banner','-loglevel','error','-y','-i',str(source),'-an','-c:v','copy',str(silent)],check=True,timeout=90)
+    silent_output=tmp/'silent-clip.mp4'
+    engine.extract_clip(silent,silent_output,0.5,2.5,'1:1')
+    assert silent_output.stat().st_size>1000
+    assert abs(engine.probe_video(silent_output)['duration']-2.0)<0.15
 print('native video engine tests passed')
 `;
 

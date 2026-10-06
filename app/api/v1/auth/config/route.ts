@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { config as appConfig } from '@/lib/config';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -34,7 +35,7 @@ export async function GET() {
   }
 
   return NextResponse.json(
-    { configured: true, url: projectUrl.toString().replace(/\/$/, ''), anonKey },
+    { configured: true, url: projectUrl.toString().replace(/\/$/, ''), anonKey, appUrl: appConfig.appUrl },
     { headers: { 'Cache-Control': 'no-store, max-age=0' } },
   );
 }

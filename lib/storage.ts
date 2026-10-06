@@ -1,4 +1,5 @@
 import {readFile,writeFile,unlink,mkdir} from 'node:fs/promises';
+import {createReadStream} from 'node:fs';
 import path from 'node:path';
 import {S3Client,PutObjectCommand,GetObjectCommand,DeleteObjectCommand} from '@aws-sdk/client-s3';
 import {getSignedUrl} from '@aws-sdk/s3-request-presigner';
@@ -10,6 +11,7 @@ const privateRoot=path.resolve(process.cwd(),'data/private');
 const local=(key:string)=>{if(!/^[a-zA-Z0-9][a-zA-Z0-9._/-]{0,240}$/.test(key)||key.split('/').includes('..'))throw new Error('INVALID_MEDIA_KEY');const resolved=path.resolve(privateRoot,key);if(!resolved.startsWith(privateRoot+path.sep))throw new Error('INVALID_MEDIA_KEY');return resolved;};
 export async function putMedia(key:string,bytes:Buffer,mime:string){if(bucket){await client().send(new PutObjectCommand({Bucket:bucket,Key:key,Body:bytes,ContentType:mime,ServerSideEncryption:process.env.MEDIA_SSE==='AES256'?'AES256':undefined}));return;}
  await mkdir(path.dirname(local(key)),{recursive:true});await writeFile(local(key),bytes,{flag:'wx',mode:0o600});}
+export async function putMediaFile(key:string,filePath:string,mime:string,size:number){if(!bucket)throw new Error('Private media bucket is not configured');await client().send(new PutObjectCommand({Bucket:bucket,Key:key,Body:createReadStream(filePath),ContentLength:size,ContentType:mime,ServerSideEncryption:process.env.MEDIA_SSE==='AES256'?'AES256':undefined}));}
 export async function getMedia(key:string,range?:string){if(bucket){const response=await client().send(new GetObjectCommand({Bucket:bucket,Key:key,Range:range}));return {bytes:Buffer.from(await response.Body!.transformToByteArray()),contentRange:response.ContentRange};}
  const bytes=await readFile(local(key));if(!range)return {bytes};const match=/^bytes=(\d+)-(\d*)$/.exec(range);if(!match)throw new Error('INVALID_RANGE');const start=Number(match[1]),end=match[2]?Math.min(Number(match[2]),bytes.length-1):bytes.length-1;if(start>=bytes.length||end<start)throw new Error('INVALID_RANGE');return {bytes:bytes.subarray(start,end+1),contentRange:`bytes ${start}-${end}/${bytes.length}`};}
 export async function removeMedia(key:string){if(bucket){await client().send(new DeleteObjectCommand({Bucket:bucket,Key:key}));return;}await unlink(local(key)).catch(()=>{});}

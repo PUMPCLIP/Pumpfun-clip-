@@ -18,6 +18,7 @@ COPY app ./app
 COPY lib ./lib
 COPY public ./public
 COPY scripts ./scripts
+COPY engine ./engine
 COPY db ./db
 COPY requirements-video.txt ./requirements-video.txt
 # Render uses the lean Next build only; Cloudflare/OpenNext remains available via npm run build.
@@ -38,6 +39,7 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/package-lock.json ./package-lock.json
 COPY --from=builder /app/scripts ./scripts
+COPY --from=builder /app/engine ./engine
 COPY --from=builder /app/db ./db
 COPY --from=builder /app/requirements-video.txt ./requirements-video.txt
 RUN python3 -m venv /opt/pumpclip-video \

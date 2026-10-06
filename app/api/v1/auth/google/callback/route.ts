@@ -2,8 +2,9 @@ import {cookies} from 'next/headers';
 import {createRemoteJWKSet,jwtVerify} from 'jose';
 import {db,one} from '@/lib/db';
 import {createSession,random} from '@/lib/auth';
+import {config} from '@/lib/config';
 export async function GET(request:Request) {
-  const url=new URL(request.url), appUrl=process.env.APP_URL || url.origin, c=await cookies();
+  const url=new URL(request.url), appUrl=config.appUrl, c=await cookies();
   const state=c.get('pc_oauth_state')?.value,nonce=c.get('pc_oauth_nonce')?.value;
   c.delete('pc_oauth_state'); c.delete('pc_oauth_nonce');
   if(!state || !nonce || url.searchParams.get('state')!==state || !url.searchParams.get('code')) return Response.redirect(appUrl+'/auth?error=oauth_state');

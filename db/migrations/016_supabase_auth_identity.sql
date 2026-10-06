@@ -1,0 +1,3 @@
+ALTER TABLE users ADD COLUMN IF NOT EXISTS supabase_user_id text;
+CREATE UNIQUE INDEX IF NOT EXISTS users_supabase_user_id_unique ON users(supabase_user_id);
+CREATE INDEX IF NOT EXISTS users_email_lower_idx ON users(lower(email));

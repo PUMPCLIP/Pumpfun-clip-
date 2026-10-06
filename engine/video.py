@@ -141,6 +141,7 @@ def download_video(url: str, output: str | Path) -> Path:
         "retries": 2,
         "fragment_retries": 2,
         "max_filesize": MAX_SOURCE_BYTES,
+        "js_runtimes": {"node": {}},
         "allowed_extractors": ["Youtube", "TikTok", "Instagram", "Twitter"],
         "cachedir": False,
         "progress_hooks": [download_hook],

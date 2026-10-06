@@ -109,6 +109,20 @@ async function persistOutput(job,outputPath,rendered){
 async function processJob(job){
  const dir=path.join(root,job.id);
  let input=path.join(dir,'source.bin'),output=path.join(dir,'clip.mp4');
+ let renewing=false;
+ const heartbeat=setInterval(async()=>{
+  if(renewing)return;
+  renewing=true;
+  try{
+   const renewed=await db.query("UPDATE ai_clip_requests SET lease_expires_at=now()+($3::text||' milliseconds')::interval,updated_at=now() WHERE id=$1 AND lease_id=$2 AND status='processing'",[job.id,job.lease_id,LEASE_MS]);
+   if(!renewed.rowCount){
+    console.error(JSON.stringify({event:'native_clip_lease_lost',jobId:job.id}));
+    if(activeProcess){try{process.kill(-activeProcess.pid,'SIGTERM');}catch{activeProcess.kill('SIGTERM');}}
+   }
+  }catch(error){console.error(JSON.stringify({event:'native_clip_lease_renew_failed',jobId:job.id,error:String(error?.message||error)}));}
+  finally{renewing=false;}
+ },Math.max(10_000,Math.floor(LEASE_MS/3)));
+ heartbeat.unref();
  try{
   await mkdir(root,{recursive:true,mode:0o700});
   await (await import('node:fs/promises')).rm(dir,{recursive:true,force:true});
@@ -129,6 +143,7 @@ async function processJob(job){
   await failJob(job,message);
   console.error(JSON.stringify({event:'native_clip_failed',jobId:job.id,error:message}));
  }finally{
+  clearInterval(heartbeat);
   // All downloaded and rendered intermediates are private, per-job, and always removed.
   await (await import('node:fs/promises')).rm(dir,{recursive:true,force:true}).catch(()=>{});
  }

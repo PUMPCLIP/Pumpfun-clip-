@@ -1,12 +1,18 @@
 import {z} from 'zod';
 import {db,one} from '@/lib/db';
-import {mutation,ApiError,jsonError} from '@/lib/auth';
+import {mutation,requireUser,ApiError,jsonError} from '@/lib/auth';
 import {gate} from '@/lib/access';
 import {rateLimit} from '@/lib/rate-limit';
 import {reserveAiUnits,settleAiUnits} from '@/lib/ai-usage';
 
 export const runtime='nodejs';
 const uuid=z.string().uuid();
+export async function GET(){try{
+  const user=await requireUser();
+  const result=await db.query(`SELECT id,status,aspect_ratio,start_seconds,end_seconds,output_asset_id,error_message,created_at
+    FROM ai_clip_requests WHERE user_id=$1 AND engine='native' ORDER BY created_at DESC LIMIT 12`,[user.user_id]);
+  return Response.json({items:result.rows});
+}catch(error){return jsonError(error,crypto.randomUUID());}}
 const allowedDomains=['youtube.com','youtu.be','tiktok.com','instagram.com','x.com','twitter.com'];
 function safeSourceUrl(value:string){
   try{
