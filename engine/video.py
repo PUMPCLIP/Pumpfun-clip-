@@ -219,7 +219,8 @@ def chunk_video(source: str | Path, output_dir: str | Path,
             "ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-ss", f"{offset:.3f}",
             "-i", str(source), "-t", f"{min(chunk_seconds, duration-offset):.3f}",
             "-map", "0:v:0", "-map", "0:a?", "-c:v", "libx264", "-preset", "veryfast",
-            "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac", "-movflags", "+faststart", str(target),
+            "-crf", "23", "-pix_fmt", "yuv420p", "-threads", "1", "-filter_threads", "1",
+            "-filter_complex_threads", "1", "-c:a", "aac", "-movflags", "+faststart", str(target),
         ])
         if target.stat().st_size:
             chunks.append(target)
@@ -268,6 +269,7 @@ def extract_clip(source: str | Path, output: str | Path, start: float, end: floa
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(source),
         "-ss", f"{start:.3f}", "-t", f"{end - start:.3f}", "-map", "0:v:0", "-map", "0:a?",
         "-vf", vf, "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p",
+        "-threads", "1", "-filter_threads", "1", "-filter_complex_threads", "1",
         "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", str(target),
     ])
     return target
