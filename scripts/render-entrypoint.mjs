@@ -11,7 +11,8 @@ async function main(){
     if(process.env.OPENAI_API_KEY) start(process.execPath,['scripts/ai-worker.mjs']);
     else console.warn('[render-entrypoint] OPENAI_API_KEY is not configured; transcription worker is disabled.');
     const smokeRunId=process.env.PUMPCLIP_PIPELINE_SMOKE_RUN_ID;
-    if(smokeRunId) start(process.execPath,['scripts/pipeline-smoke.mjs',smokeRunId]);
+    if(process.env.PUMPCLIP_ENABLE_PIPELINE_SMOKE==='true'&&smokeRunId)
+      start(process.execPath,['scripts/pipeline-smoke.mjs',smokeRunId]);
   } else console.warn('[render-entrypoint] DATABASE_URL is not configured; workers and migrations are disabled.');
   const server=start(process.execPath,['server.js']);
   const shutdown=signal=>{for(const child of children)child.kill(signal);};
