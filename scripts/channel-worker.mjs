@@ -4,14 +4,15 @@ import {spawn} from 'node:child_process';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
-const databaseUrl=process.env.DATABASE_URL||'';
-const ssl=process.env.DATABASE_SSL==='disable'?undefined:(databaseUrl?{rejectUnauthorized:false}:undefined);
+const runtimeEnv=globalThis.process?.env && typeof globalThis.process.env==='object'?globalThis.process.env:{};
+const databaseUrl=runtimeEnv.DATABASE_URL||'';
+const ssl=runtimeEnv.DATABASE_SSL==='disable'?undefined:(databaseUrl?{rejectUnauthorized:false}:undefined);
 const db=new pg.Client({connectionString:databaseUrl,ssl,connectionTimeoutMillis:10000});
-const python=process.env.PUMPCLIP_PYTHON||'python3';
+const python=runtimeEnv.PUMPCLIP_PYTHON||'python3';
 const engine=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../engine/video.py');
-const LEASE_MS=Number(process.env.CHANNEL_WORKER_LEASE_MS||15*60*1000);
+const LEASE_MS=Number(runtimeEnv.CHANNEL_WORKER_LEASE_MS||15*60*1000);
 const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-function invoke(args){return new Promise((resolve,reject)=>{const proc=spawn(python,[engine,...args],{stdio:['ignore','pipe','pipe'],env:{...process.env,PYTHONUNBUFFERED:'1',PYTHONDONTWRITEBYTECODE:'1'}});let out='',err='';proc.stdout.on('data',x=>out=(out+x).slice(-1024*1024));proc.stderr.on('data',x=>err=(err+x).slice(-8000));proc.on('error',reject);proc.on('close',code=>{if(code===0)try{resolve(JSON.parse(out));}catch{reject(new Error('Channel enumerator returned invalid JSON'));}else reject(new Error((err||out||`Channel enumerator exited ${code}`).slice(-4000)));});});}
+function invoke(args){return new Promise((resolve,reject)=>{const proc=spawn(python,[engine,...args],{stdio:['ignore','pipe','pipe'],env:{...runtimeEnv,PYTHONUNBUFFERED:'1',PYTHONDONTWRITEBYTECODE:'1'}});let out='',err='';proc.stdout.on('data',x=>out=(out+x).slice(-1024*1024));proc.stderr.on('data',x=>err=(err+x).slice(-8000));proc.on('error',reject);proc.on('close',code=>{if(code===0)try{resolve(JSON.parse(out));}catch{reject(new Error('Channel enumerator returned invalid JSON'));}else reject(new Error((err||out||`Channel enumerator exited ${code}`).slice(-4000)));});});}
 async function claim(){await db.query('BEGIN');try{await db.query("UPDATE channel_ingestions SET status='queued',lease_id=NULL,lease_expires_at=NULL,updated_at=now() WHERE status='processing' AND lease_expires_at IS NOT NULL AND lease_expires_at<now()");const leaseId=crypto.randomUUID();const result=await db.query(`SELECT * FROM channel_ingestions WHERE status='queued' ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED`);const job=result.rows[0];if(job){await db.query("UPDATE channel_ingestions SET status='processing',lease_id=$2,lease_expires_at=now()+($3::text||' milliseconds')::interval,updated_at=now() WHERE id=$1",[job.id,leaseId,LEASE_MS]);job.lease_id=leaseId;}await db.query('COMMIT');return job;}catch(e){await db.query('ROLLBACK').catch(()=>{});throw e;}}
 async function reserveClip(job,video){
   const key=`channel:${job.id}:${video.externalId}`; const existing=await db.query('SELECT id FROM ai_usage_ledger WHERE user_id=$1 AND idempotency_key=$2',[job.user_id,key]); if(existing.rowCount)return 'existing';
@@ -44,5 +45,5 @@ async function process(job){
     await db.query('COMMIT'); console.log(JSON.stringify({event:'channel_ingestion_completed',ingestionId:job.id,discovered:listed.videos.length,queued}));
   }catch(error){await db.query('ROLLBACK').catch(()=>{});await db.query("UPDATE channel_ingestions SET status='failed',error_message=$2,lease_id=NULL,lease_expires_at=NULL,updated_at=now() WHERE id=$1 AND lease_id=$3",[job.id,String(error?.message||error).slice(0,1000),job.lease_id]).catch(()=>{});console.error(JSON.stringify({event:'channel_ingestion_failed',ingestionId:job.id,error:String(error?.message||error)}));}
 }
-async function main(){await db.connect();console.log(JSON.stringify({event:'channel_worker_started'}));while(true){const job=await claim();if(job)await process(job);else await wait(Number(process.env.CHANNEL_WORKER_POLL_MS||5000));}}
+async function main(){if(!databaseUrl)throw new Error('DATABASE_URL is not configured; channel worker is disabled.');await db.connect();console.log(JSON.stringify({event:'channel_worker_started'}));while(true){const job=await claim();if(job)await process(job);else await wait(Number(runtimeEnv.CHANNEL_WORKER_POLL_MS||5000));}}
 main().catch(error=>{console.error(error);process.exitCode=1;});
