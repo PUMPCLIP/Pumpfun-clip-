@@ -6,6 +6,8 @@ async function run(command,args){return new Promise((resolve,reject)=>{const chi
 async function main(){
   if(process.env.DATABASE_URL){
     await run(process.execPath,['scripts/migrate.mjs']);
+    if(process.env.PUMPCLIP_SEED_PUBLIC_DEMO==='true')
+      await run(process.execPath,['scripts/seed-public-demo.mjs']);
     start(process.execPath,['scripts/native-worker.mjs']);
     start(process.execPath,['scripts/channel-worker.mjs']);
     if(process.env.OPENAI_API_KEY) start(process.execPath,['scripts/ai-worker.mjs']);
