@@ -171,7 +171,7 @@ export default function AuthPage() {
   return (
     <main className="auth-page">
       <header className="auth-header">
-        <a className="auth-brand" href="/"><img src="/pumpclips-mark.jpg" alt=""/><span>pumpclips</span></a>
+        <a className="auth-brand" href="/"><img src="/logo.svg" alt=""/><span>pumpclips</span></a>
         <a className="auth-back" href="/">Back to home <span>↗</span></a>
       </header>
       <section className="auth-layout">

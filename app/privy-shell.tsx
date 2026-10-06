@@ -7,7 +7,7 @@ export default function PrivyShell({children, appId}:{children:React.ReactNode;a
   return <PrivyProvider appId={appId} config={{
     loginMethods:['email','google','twitter','tiktok','twitch','wallet'],
     loginMethodsAndOrder:{primary:['email','google','twitter','tiktok'],overflow:['twitch']},
-    appearance:{theme:'dark',accentColor:'#a8e063',logo:'/pumpclips-mark.jpg'},
+    appearance:{theme:'dark',accentColor:'#a8e063',logo:'/logo.svg'},
     embeddedWallets:{solana:{createOnLogin:'users-without-wallets'}},
   }}><PrivySessionBridge>{children}</PrivySessionBridge></PrivyProvider>;
 }

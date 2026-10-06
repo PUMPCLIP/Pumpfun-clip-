@@ -18,13 +18,13 @@ export const metadata = {
     siteName: 'pumpclips',
     title: 'pumpclips — Turn streams into momentum',
     description: 'AI clipping workflow for creators, streamers, and clippers.',
-    images: [{url: '/pumpclips-logo.jpg', width: 1200, height: 1200, alt: 'pumpclips official logo'}],
+    images: [{url: '/logo.svg', width: 1200, height: 1200, alt: 'pumpclips official logo'}],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'pumpclips — Turn streams into momentum',
     description: 'AI clipping workflow for creators, streamers, and clippers.',
-    images: ['/pumpclips-logo.jpg'],
+    images: ['/logo.svg'],
   },
 };
 

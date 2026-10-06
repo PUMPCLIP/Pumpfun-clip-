@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" role="img" aria-labelledby="title desc">
+  <title id="title">pumpclips mark</title>
+  <desc id="desc">A crisp emerald pumpclips mark on a dark square.</desc>
+  <rect width="320" height="320" rx="28" fill="#020617"/>
+  <path d="M82 246V74h78c48 0 78 26 78 67s-30 67-78 67h-35v38H82Zm43-77h33c24 0 37-10 37-28s-13-28-37-28h-33v56Z" fill="#10b981"/>
+  <circle cx="236" cy="246" r="18" fill="#34d399"/>
+</svg>
