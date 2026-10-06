@@ -9,6 +9,8 @@ type ClipJob = {
   start_seconds?: number | null;
   end_seconds?: number | null;
   output_asset_id?: string | null;
+  preview_url?: string | null;
+  download_url?: string | null;
   error_message?: string | null;
   created_at: string;
 };
@@ -18,6 +20,7 @@ type ApiPayload<T> = T & { message?: string; code?: string };
 const csrf = () => decodeURIComponent(document.cookie.split('; ').find(cookie => cookie.startsWith('pc_csrf='))?.split('=')[1] || '');
 const assetUrl = (id: string) => `/api/v1/assets/${encodeURIComponent(id)}`;
 const timeLabel = (seconds?: number | null) => seconds == null ? '' : `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`;
+const previewAspect = (ratio: ClipJob['aspect_ratio']) => ratio === '16:9' ? '16 / 9' : ratio === '1:1' ? '1 / 1' : '9 / 16';
 
 async function readResponse<T>(response: Response): Promise<ApiPayload<T>> {
   const data = await response.json().catch(() => ({}));
@@ -178,10 +181,10 @@ export default function ClipEngine() {
       <div className="clip-engine-jobs-head"><div><p className="kicker">YOUR WORK / RECENT EXPORTS</p><h2 id="clip-jobs-title">Recent clips</h2></div><button type="button" className="text-button" onClick={() => void refreshJobs()} disabled={authRequired}>Refresh ↻</button></div>
       {authRequired ? <p className="clip-engine-empty">Sign in to see your recent jobs.</p> : jobs.length === 0 ? <p className="clip-engine-empty">Your clip jobs will appear here after you submit a source.</p> : <div className="clip-engine-job-grid">{jobs.map(job => <article className="clip-engine-job" key={job.id}>
         <div className="clip-engine-job-head"><span className={'clip-engine-status '+job.status}><i/>{job.status}</span><small>{new Date(job.created_at).toLocaleString()}</small></div>
-        {job.output_asset_id ? <video className="clip-engine-preview" src={assetUrl(job.output_asset_id)} controls playsInline preload="metadata" aria-label="Rendered video preview"/> : <div className="clip-engine-preview-placeholder">{job.status === 'failed' ? 'Render needs attention' : 'Rendering your clip…'}</div>}
+        {job.output_asset_id ? <video className="clip-engine-preview" style={{aspectRatio:previewAspect(job.aspect_ratio)}} src={job.preview_url || assetUrl(job.output_asset_id)} controls playsInline preload="metadata" aria-label={`${job.aspect_ratio} rendered video preview`}/> : <div className="clip-engine-preview-placeholder" style={{aspectRatio:previewAspect(job.aspect_ratio)}}>{job.status === 'failed' ? 'Render needs attention' : 'Rendering your clip…'}</div>}
         <div className="clip-engine-job-meta"><strong>{job.aspect_ratio} export</strong>{job.start_seconds != null && job.end_seconds != null && <span>{timeLabel(job.start_seconds)}–{timeLabel(job.end_seconds)}</span>}</div>
         {job.error_message && <p className="clip-engine-job-error" role="alert">{job.error_message}</p>}
-        {job.output_asset_id && <a className="clip-engine-download" href={assetUrl(job.output_asset_id)} download={`pumpclip-${job.aspect_ratio.replace(':', 'x')}.mp4`}>Download MP4 ↓</a>}
+        {job.output_asset_id && <a className="clip-engine-download" href={job.download_url || `${assetUrl(job.output_asset_id)}?download=1`} download={`pumpclip-${job.aspect_ratio.replace(':', 'x')}.mp4`}>Download MP4 ↓</a>}
       </article>)}</div>}
     </section>
   </section>;

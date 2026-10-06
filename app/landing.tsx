@@ -8,14 +8,14 @@ type Person={id:string;display_name:string;roles:string[];accepted_count:number;
 
 const DEMO_VIDEO='/street-walk-demo.mp4';
 const DEMO_POSTER='/street-walk-demo.jpg';
-const platforms=[['▶','YouTube'],['♪','TikTok'],['◎','Instagram'],['in','LinkedIn'],['𝕏','X / Twitter']];
+const platforms=[['▶','YouTube'],['♪','TikTok'],['◎','Instagram'],['𝕏','X']] as const;
 const mockClips=[
   {label:'THE CONTRARIAN TAKE',score:99},
   {label:'BUILD IN PUBLIC',score:98},
   {label:'THE ROOM WENT SILENT',score:94},
   {label:'LATE NIGHT BUILD LOGS',score:97}
 ];
-const logos=['YouTube','Twitch','TikTok','Instagram','LinkedIn','X'];
+const logos=['YouTube','TikTok','Instagram','X'];
 const fallbackPeople=[
   {initials:'MC',name:'Maya Chen',role:'Creator · Business',metric:'12 campaigns',label:'published'},
   {initials:'AR',name:'Alex Rivera',role:'Clipper · Hook-first editor',metric:'4.9 rating',label:'portfolio'},
@@ -28,6 +28,7 @@ const fallbackPeople=[
 function compact(value:number){return new Intl.NumberFormat('en',{notation:'compact',maximumFractionDigits:1}).format(Number(value||0));}
 function earned(lamports:number){const sol=Number(lamports||0)/1_000_000_000;return sol?`${sol.toFixed(sol<1?.2:1)} SOL earned`:'Rewards starting';}
 function supportedVideoUrl(value:string){try{const url=new URL(value,'https://pumpclip.app');return url.protocol==='https:'||url.protocol==='http:';}catch{return false;}}
+function platformForHost(hostname:string){const host=hostname.replace(/^www\./,'');if(host==='youtube.com'||host==='youtu.be'||host.endsWith('.youtube.com'))return 'YouTube';if(host==='tiktok.com'||host.endsWith('.tiktok.com'))return 'TikTok';if(host==='instagram.com'||host.endsWith('.instagram.com'))return 'Instagram';if(host==='x.com'||host.endsWith('.x.com')||host==='twitter.com'||host.endsWith('.twitter.com'))return 'X';return '';}
 
 function PreviewMedia({src}:{src:string}){
   const video=useRef<HTMLVideoElement>(null);
@@ -83,11 +84,12 @@ export default function Landing(){
     if(!value){setMessage('Paste a public video link to get started.');return;}
     try{
       const parsed=new URL(value);
-      const allowed=['youtube.com','youtu.be','tiktok.com','instagram.com','x.com','twitter.com'];
-      const host=parsed.hostname.replace(/^www\./,'');
-      if(parsed.protocol!=='https:'||!allowed.some(domain=>host===domain||host.endsWith(`.${domain}`))){setMessage('Use an HTTPS YouTube, TikTok, Instagram, or X video link.');return;}
+      const sourcePlatform=platformForHost(parsed.hostname);
+      if(parsed.protocol!=='https:'||!sourcePlatform){setMessage('Use an HTTPS YouTube, TikTok, Instagram, or X video link.');return;}
+      setSelectedPlatform(sourcePlatform);
+      setMessage(`Ready to clip from ${sourcePlatform}.`);
+      return;
     }catch{setMessage('Enter a valid public video link.');return;}
-    setMessage(`Ready to clip from ${selectedPlatform}. Sign in to continue.`);
   };
 
   async function toggleHeroPlayback(){
@@ -100,7 +102,7 @@ export default function Landing(){
     <header className="opus-nav"><a className="opus-logo" href="/" aria-label="pumpclips home"><img src="/pumpclips-mark.jpg" alt="" width={1024} height={1024} /> <span>pumpclips</span></a><button className="opus-menu-toggle" type="button" aria-label={mobileMenuOpen?'Close navigation menu':'Open navigation menu'} aria-expanded={mobileMenuOpen} aria-controls="primary-navigation" onClick={()=>setMobileMenuOpen(open=>!open)}><span/><span/><span/></button><nav id="primary-navigation" className={mobileMenuOpen?'is-open':''} aria-label="Primary navigation"><a href="#showcase" onClick={()=>setMobileMenuOpen(false)}>Showcase</a><a href="/people" onClick={()=>setMobileMenuOpen(false)}>Creators + clippers</a><a href="/feed" onClick={()=>setMobileMenuOpen(false)}>Watch feed</a></nav><div className="opus-nav-actions"><a className="opus-login" href="/auth">Sign in</a><a className="opus-nav-join" href="/auth?mode=signup">Join network <span>↗</span></a></div></header>
 
     <section className="opus-hero opus-hero-expanded"><div className="opus-hero-copy"><img className="opus-hero-logo" src="/pumpclips-logo.jpg" alt="pumpclips official logo" width={1200} height={1200} fetchPriority="high" /><span className="opus-kicker">THE AI CLIPPING WORKSPACE / 001</span><h1>Turn long video<br/><em>into momentum.</em></h1><p>Drop in a long-form video. pumpclips finds the moments worth sharing, then lets creators and clippers turn them into rewards.</p>
-      <form className="opus-url-form" onSubmit={submitUrl}><div className="opus-url-row"><span className="url-link-icon">↗</span><input value={url} onChange={event=>setUrl(event.target.value)} placeholder="Drop a video link (YouTube, TikTok, Instagram, or X)..." aria-label="Long video URL"/><button type="submit">Get clips <span>↗</span></button></div><div className="platform-pills">{platforms.map(([icon,name])=><button type="button" className={selectedPlatform===name?'selected':''} key={name} onClick={()=>setSelectedPlatform(name)}><b>{icon}</b>{name}</button>)}</div></form>{message&&<div className="opus-form-message" role="status">{message}<a href="/auth"> Sign in ↗</a></div>}<small className="opus-note">Licensed source · Creator review · Transparent rewards</small></div>
+      <form className="opus-url-form" onSubmit={submitUrl}><div className="opus-url-row"><span className="url-link-icon">↗</span><input value={url} onChange={event=>setUrl(event.target.value)} placeholder="Drop a video link (YouTube, TikTok, Instagram, or X)..." aria-label="Long video URL"/><button type="submit">Get clips <span>↗</span></button></div><div className="platform-pills" role="group" aria-label="Supported source platforms">{platforms.map(([icon,name])=><button type="button" className={selectedPlatform===name?'selected':''} key={name} onClick={()=>setSelectedPlatform(name)} aria-pressed={selectedPlatform===name}><b aria-hidden="true">{icon}</b>{name}</button>)}</div></form>{message&&<div className="opus-form-message" role="status"><span>{message}</span><a className="opus-form-action" href="/auth">Sign in to continue <span aria-hidden="true">↗</span></a></div>}<small className="opus-note">Licensed source · Creator review · Transparent rewards</small></div>
       <div className="opus-hero-demo"><div className="demo-browser"><div className="demo-top"><span>● ● ●</span><small>{heroClip&&!heroFallback?'LIVE COMMUNITY CUT':'PUMPCLIPS / DEMO PREVIEW'}</small><b>9:16</b></div><div className="demo-video live-hero-video"><video className={heroClip&&!heroFallback?'hero-media is-clip':'hero-media is-source'} ref={heroVideo} key={heroSrc} src={heroSrc} poster={DEMO_POSTER} muted={heroMuted} autoPlay loop playsInline preload="metadata" onPlay={()=>setHeroPlaying(true)} onPause={()=>setHeroPlaying(false)} onError={()=>setHeroFallback(true)} aria-label="Interactive pumpclips clip preview"/><div className="live-video-shade"/><div className="live-video-copy"><span className="live-video-kicker">{heroClip&&!heroFallback?'FROM THE PUMPCLIPS NETWORK':'LIVE PREVIEW'}</span><strong>{heroClip&&!heroFallback?heroClip.campaign_title:'Make this moment count.'}</strong><small>{heroClip&&!heroFallback?`@${heroClip.clipper_name} · ${compact(heroClip.view_count)} views`:'Upload a source and turn attention into reach.'}</small></div><div className="live-video-controls"><button type="button" onClick={toggleHeroPlayback} aria-label={heroPlaying?'Pause video':'Play video'}>{heroPlaying?'Ⅱ':'▶'}</button><button type="button" onClick={toggleHeroSound} aria-label={heroMuted?'Unmute video':'Mute video'}>{heroMuted?'🔇':'🔊'}</button><span><i/><i/><i/><i/><i/><i/><i/></span></div></div><div className="demo-timeline"><span>00:42</span><i/><i/><i/><i/><i/><i/><span>01:12</span></div></div><div className="demo-sticker">AI<br/><b>→</b> CLIP</div></div></section>
 
     <section className="opus-proof"><span>USED BY PEOPLE WHO MAKE THE INTERNET MOVE</span><i/><span>9:16 READY</span><i/><span>CREATOR REVIEW</span><i/><span>REWARD THE WORK</span></section>

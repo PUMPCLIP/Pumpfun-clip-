@@ -14,7 +14,7 @@ export default function AuthPage() {
   const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
   const [appUrl, setAppUrl] = useState('https://pumpclip.app');
   const [configLoading, setConfigLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<'email' | 'google' | 'session' | null>(null);
   const [notice, setNotice] = useState<AuthNotice>(null);
   const syncing = useRef(false);
   const redirecting = useRef(false);
@@ -22,7 +22,7 @@ export default function AuthPage() {
   const completeServerSignIn = useCallback(async (session: Session) => {
     if (syncing.current || redirecting.current) return;
     syncing.current = true;
-    setBusy(true);
+    setBusy('session');
     setNotice({ kind: 'info', text: 'Finishing secure sign-in…' });
     try {
       const response = await fetch('/api/v1/auth/supabase', {
@@ -43,7 +43,7 @@ export default function AuthPage() {
       setNotice({ kind: 'error', text: error instanceof Error ? error.message : 'Could not start your workspace session.' });
     } finally {
       syncing.current = false;
-      setBusy(false);
+      setBusy(null);
     }
   }, []);
 
@@ -111,7 +111,7 @@ export default function AuthPage() {
       setNotice({ kind: 'error', text: 'Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to the deployment environment.' });
       return;
     }
-    setBusy(true);
+    setBusy('email');
     try {
       const normalizedEmail = email.trim();
       if (mode === 'signup') {
@@ -139,7 +139,7 @@ export default function AuthPage() {
       const message = error instanceof Error ? error.message : 'Authentication failed. Please try again.';
       setNotice({ kind: 'error', text: message });
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
 
@@ -149,14 +149,16 @@ export default function AuthPage() {
       setNotice({ kind: 'error', text: 'Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to the deployment environment.' });
       return;
     }
-    setBusy(true);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: `${appUrl}/auth` },
-    });
-    if (error) {
-      setNotice({ kind: 'error', text: error.message || 'Google sign-in failed. Please try again.' });
-      setBusy(false);
+    setBusy('google');
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: `${appUrl}/auth` },
+      });
+      if (error) throw error;
+    } catch (error) {
+      setNotice({ kind: 'error', text: error instanceof Error ? error.message : 'Google sign-in failed. Please try again.' });
+      setBusy(null);
     }
   };
 
@@ -181,9 +183,9 @@ export default function AuthPage() {
           <div className="auth-proof"><span>02</span><p><strong>Work with trust.</strong><br/>Clear briefs, visible profiles, and rewards that follow the work.</p></div>
         </div>
         <div className="auth-card">
-          <div className="auth-tabs" role="tablist" aria-label="Authentication">
-            <button type="button" role="tab" aria-selected={mode === 'signin'} className={mode === 'signin' ? 'active' : ''} onClick={() => switchMode('signin')}>Sign in</button>
-            <button type="button" role="tab" aria-selected={mode === 'signup'} className={mode === 'signup' ? 'active' : ''} onClick={() => switchMode('signup')}>Create account</button>
+          <div className="auth-tabs" role="group" aria-label="Authentication mode">
+            <button type="button" aria-pressed={mode === 'signin'} className={mode === 'signin' ? 'active' : ''} onClick={() => switchMode('signin')}>Sign in</button>
+            <button type="button" aria-pressed={mode === 'signup'} className={mode === 'signup' ? 'active' : ''} onClick={() => switchMode('signup')}>Create account</button>
           </div>
           <div className="auth-card-heading">
             <span className="auth-kicker">{mode === 'signin' ? 'WELCOME BACK' : 'JOIN THE NETWORK'}</span>
@@ -195,17 +197,18 @@ export default function AuthPage() {
             <button type="button" className={role === 'streamer' ? 'selected' : ''} aria-pressed={role === 'streamer'} onClick={() => chooseRole('streamer')}><strong>Streamer</strong><span>Launch a pump, grow your reach.</span></button>
           </div>}
           <form className="auth-email-form" onSubmit={submit}>
-            <label>Email address<input type="email" value={email} onChange={event => setEmail(event.target.value)} placeholder="you@studio.com" autoComplete="email" required disabled={busy}/></label>
-            <label>Password<input type="password" value={password} onChange={event => setPassword(event.target.value)} placeholder={mode === 'signup' ? 'At least 8 characters' : 'Enter your password'} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} minLength={mode === 'signup' ? 8 : undefined} required disabled={busy}/></label>
-            <button className="auth-secondary" type="submit" disabled={busy || configLoading || !supabase}>
-              {busy ? <><span className="auth-spinner" aria-hidden="true"/>{mode === 'signin' ? 'Signing in…' : 'Creating account…'}</> : mode === 'signin' ? 'Sign in with email' : 'Create account'}
+            <label>Email address<input type="email" value={email} onChange={event => setEmail(event.target.value)} placeholder="you@studio.com" autoComplete="email" required disabled={!!busy}/></label>
+            <label>Password<input type="password" value={password} onChange={event => setPassword(event.target.value)} placeholder={mode === 'signup' ? 'At least 8 characters' : 'Enter your password'} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} minLength={mode === 'signup' ? 8 : undefined} required disabled={!!busy}/></label>
+            <button className="auth-secondary" type="submit" disabled={!!busy || configLoading || !supabase}>
+              {busy === 'email' ? <><span className="auth-spinner" aria-hidden="true"/>{mode === 'signin' ? 'Signing in…' : 'Creating account…'}</> : busy === 'session' ? <><span className="auth-spinner" aria-hidden="true"/>Opening workspace…</> : mode === 'signin' ? 'Sign in with email' : 'Create account'}
             </button>
           </form>
+          {configLoading && !notice && <p className="auth-notice auth-notice-info" role="status" aria-live="polite">Setting up secure sign-in…</p>}
           {notice && <p className={`auth-notice auth-notice-${notice.kind}`} role={notice.kind === 'error' ? 'alert' : 'status'} aria-live="polite">{notice.text}</p>}
           <div className="auth-divider"><span>or</span></div>
           <div className="auth-actions">
-            <button className="auth-primary" type="button" onClick={signInWithGoogle} disabled={busy || configLoading || !supabase}>
-              {busy ? <><span className="auth-spinner" aria-hidden="true"/>Connecting…</> : <>Continue with Google <span>↗</span></>}
+            <button className="auth-primary" type="button" onClick={signInWithGoogle} disabled={!!busy || configLoading || !supabase}>
+              {busy === 'google' ? <><span className="auth-spinner" aria-hidden="true"/>Connecting…</> : busy === 'session' ? <><span className="auth-spinner" aria-hidden="true"/>Opening workspace…</> : <>Continue with Google <span>↗</span></>}
             </button>
             <p className="auth-helper">Secure sign-in powered by Supabase. Your account is protected with encrypted sessions.</p>
           </div>

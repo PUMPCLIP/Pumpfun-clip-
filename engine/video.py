@@ -132,7 +132,9 @@ def download_video(url: str, output: str | Path) -> Path:
             validate_download_url(status["info_dict"]["url"])
 
     options = {
-        "format": "best[ext=mp4]/best",
+        # Public YouTube web clients may return a bot challenge from server IPs.
+        # These anonymous clients are supported without browser cookies; cap resolution for worker memory/storage limits.
+        "format": "best[height<=720][ext=mp4]/best[height<=720]/best[ext=mp4]/best",
         "outtmpl": str(target) + ".%(ext)s",
         "noplaylist": True,
         "quiet": True,
@@ -142,6 +144,7 @@ def download_video(url: str, output: str | Path) -> Path:
         "fragment_retries": 2,
         "max_filesize": MAX_SOURCE_BYTES,
         "js_runtimes": {"node": {}},
+        "extractor_args": {"youtube": {"player_client": ["android", "tv_embedded"]}},
         "allowed_extractors": ["Youtube", "TikTok", "Instagram", "Twitter"],
         "cachedir": False,
         "progress_hooks": [download_hook],

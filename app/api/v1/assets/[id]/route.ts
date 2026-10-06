@@ -17,9 +17,11 @@ export async function GET(request:Request,{params}:{params:Promise<{id:string}>}
       if(!sourceAccess && !reviewAccess) throw new ApiError('FORBIDDEN',403);
     }
     const range=request.headers.get('range')||undefined;
+    const download=new URL(request.url).searchParams.get('download')==='1';
     let result;
     try {result=await getMedia(asset.object_key,range);} catch(e) {if(range) return new Response(null,{status:416});throw e;}
-    const headers:Record<string,string>={'content-type':asset.mime,'cache-control':'private, no-store','content-security-policy':"default-src 'none'",'x-content-type-options':'nosniff','accept-ranges':'bytes','content-length':String(result.bytes.length)};
+    const extension=asset.mime==='video/webm'?'webm':asset.mime==='video/quicktime'?'mov':asset.mime==='video/mp4'?'mp4':'bin';
+    const headers:Record<string,string>={'content-type':asset.mime,'content-disposition':`${download?'attachment':'inline'}; filename="pumpclip-${asset.id}.${extension}"`,'cache-control':'private, no-store','content-security-policy':"default-src 'none'",'x-content-type-options':'nosniff','accept-ranges':'bytes','content-length':String(result.bytes.length)};
     if(range&&result.contentRange) headers['content-range']=result.contentRange;
     return new Response(result.bytes,{status:range?206:200,headers});
   } catch(e) {return jsonError(e,crypto.randomUUID());}

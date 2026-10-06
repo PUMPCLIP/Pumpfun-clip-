@@ -9,7 +9,9 @@ export const runtime='nodejs';
 const uuid=z.string().uuid();
 export async function GET(){try{
   const user=await requireUser();
-  const result=await db.query(`SELECT id,status,aspect_ratio,start_seconds,end_seconds,output_asset_id,error_message,created_at
+  const result=await db.query(`SELECT id,status,aspect_ratio,start_seconds,end_seconds,output_asset_id,error_message,created_at,
+      CASE WHEN output_asset_id IS NULL THEN NULL ELSE '/api/v1/assets/'||output_asset_id::text END AS preview_url,
+      CASE WHEN output_asset_id IS NULL THEN NULL ELSE '/api/v1/assets/'||output_asset_id::text||'?download=1' END AS download_url
     FROM ai_clip_requests WHERE user_id=$1 AND engine='native' ORDER BY created_at DESC LIMIT 12`,[user.user_id]);
   return Response.json({items:result.rows});
 }catch(error){return jsonError(error,crypto.randomUUID());}}
