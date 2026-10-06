@@ -268,3 +268,8 @@ html,body{max-width:100%;overflow-x:hidden}body{color:var(--brand-ink)}
 .auth-spinner,.clip-engine-spinner{display:inline-block;width:15px;height:15px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;vertical-align:-3px;animation:auth-spin .7s linear infinite}@keyframes auth-spin{to{transform:rotate(360deg)}}
 .auth-page,.auth-layout,.auth-card,.auth-email-form,.auth-email-form label{min-width:0}.auth-card{box-sizing:border-box}.auth-terms a{color:var(--brand-green);text-underline-offset:3px}
 @media(max-width:760px){.demo-sticker{right:8px}.auth-layout{padding-inline:16px}.auth-card{width:100%;max-width:520px;margin-inline:auto}.auth-email-form input{font-size:16px}}
+
+/* Balanced desktop authentication layout; retain a comfortable stack on tablets and phones. */
+.auth-layout{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);align-items:center;gap:clamp(36px,5vw,72px)}
+.auth-story{max-width:500px}.auth-card{max-width:560px;justify-self:end}
+@media(max-width:980px){.auth-layout{display:block}.auth-story{margin-bottom:32px}.auth-card{max-width:560px;margin-inline:auto}}
