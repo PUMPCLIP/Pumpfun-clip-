@@ -2,6 +2,7 @@ import {getMedia} from '@/lib/storage';
 import {one} from '@/lib/db';
 import {session,ApiError,jsonError} from '@/lib/auth';
 export const runtime='nodejs';
+function isAllowlistedDemoSource(value:string){try{const url=new URL(value);return url.protocol==='https:'&&url.hostname==='docs.evostream.com'&&url.pathname.startsWith('/sample_content/assets/');}catch{return false;}}
 export async function GET(request:Request,{params}:{params:Promise<{id:string}>}) {
   try {
     const user=await session(),{id}=await params;
@@ -19,7 +20,13 @@ export async function GET(request:Request,{params}:{params:Promise<{id:string}>}
     const range=request.headers.get('range')||undefined;
     const download=new URL(request.url).searchParams.get('download')==='1';
     let result;
-    try {result=await getMedia(asset.object_key,range);} catch(e) {if(range) return new Response(null,{status:416});throw e;}
+    try {result=await getMedia(asset.object_key,range);} catch(e) {
+      if(asset.kind==='clip'&&publicFeedAccess&&isAllowlistedDemoSource(asset.source_url||'')){
+        const upstream=await fetch(asset.source_url,{headers:range?{range}:undefined,signal:AbortSignal.timeout(30000)});
+        if(!upstream.ok) throw e;
+        result={bytes:Buffer.from(await upstream.arrayBuffer()),contentRange:upstream.headers.get('content-range')||undefined};
+      }else{if(range) return new Response(null,{status:416});throw e;}
+    }
     const extension=asset.mime==='video/webm'?'webm':asset.mime==='video/quicktime'?'mov':asset.mime==='video/mp4'?'mp4':'bin';
     const headers:Record<string,string>={'content-type':asset.mime,'content-disposition':`${download?'attachment':'inline'}; filename="pumpclip-${asset.id}.${extension}"`,'cache-control':'private, no-store','content-security-policy':"default-src 'none'",'x-content-type-options':'nosniff','accept-ranges':'bytes','content-length':String(result.bytes.length)};
     if(range&&result.contentRange) headers['content-range']=result.contentRange;
