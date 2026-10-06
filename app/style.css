@@ -452,3 +452,25 @@ html,body{background:var(--pump-bg)!important;color:var(--pump-ink)!important;co
 .opus-proof,.opus-logo-ticker,.directory-stats,.feed-metrics{border-color:var(--pump-border)!important;background:rgba(10,25,19,.72)!important;color:var(--pump-muted)!important}.opus-proof i{background:var(--pump-accent)!important}.viral-score{background:var(--pump-accent)!important;color:#03150d!important}.opus-person>b,.directory-role,.directory-card-top>b,.opus-footer>a:last-child{color:var(--pump-accent)!important}.opus-final{background:linear-gradient(135deg,var(--pump-accent-dark),#047857)!important;border-color:var(--pump-accent)!important}.opus-final h2,.opus-final .opus-kicker{color:#fff!important}.opus-final h2 em{color:var(--pump-accent-soft)!important}
 .auth-tabs{border-color:var(--pump-border)!important;background:var(--pump-bg-raised)!important}.auth-tabs button{color:var(--pump-muted)!important}.auth-tabs button.active{background:rgba(16,185,129,.14)!important;color:var(--pump-accent)!important;box-shadow:none!important}.auth-email-form input{border-color:var(--pump-border)!important}.auth-helper,.auth-terms,.auth-card-heading p{color:var(--pump-muted)!important}.role-picker button{border-color:var(--pump-border)!important;background:var(--pump-bg-raised)!important;color:var(--pump-ink)!important}.role-picker button.selected{border-color:var(--pump-accent)!important;background:rgba(16,185,129,.12)!important}.auth-proof>span{color:var(--pump-accent)!important}
 @media(max-width:760px){.opus-nav,.people-header,.feed-header,.auth-header{padding:10px 14px!important}.opus-hero{padding:52px 16px 64px!important}.opus-hero h1{font-size:clamp(48px,14vw,72px)!important}.opus-showcase,.opus-network,.capsule-journey,.clipper-proof{padding-inline:16px!important}.opus-final{margin-inline:16px!important;border-radius:14px!important}.auth-layout{padding:40px 16px 60px!important}}
+
+
+/* Final mobile landing polish: reserve dedicated header slots and keep the hero preview clean. */
+@media (max-width:760px){
+  .opus-nav{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto auto;
+    align-items:center;
+    justify-content:initial;
+    gap:8px;
+    padding-inline:12px;
+  }
+  .opus-logo{grid-column:1;min-width:0;overflow:hidden}
+  .opus-menu-toggle{grid-column:2;justify-self:end}
+  .opus-nav-actions{grid-column:3;display:flex;align-items:center;justify-content:flex-end;min-width:0;margin-left:0}
+  .opus-nav-join{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+  .opus-hero-demo{position:relative;z-index:0}
+}
+@media (max-width:420px){
+  .opus-nav{grid-template-columns:minmax(0,1fr) 42px auto}
+  .opus-nav-join{padding-inline:8px}
+}
