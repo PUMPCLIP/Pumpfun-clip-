@@ -233,3 +233,26 @@ body{letter-spacing:-.01em}button,input,textarea,select{font:inherit}button{appe
 /* Centered modal system for briefs, support, and actions. */
 .drawer-backdrop,.modal-backdrop{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:20px;box-sizing:border-box;background:rgba(0,0,0,.64);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);animation:modal-fade-in .18s ease-out}.brief-drawer,.dispute-modal{position:relative;width:min(100%,600px);max-height:min(88dvh,760px);overflow:auto;margin:0;border:1px solid var(--modern-line-strong);border-radius:22px;background:linear-gradient(145deg,rgba(24,31,42,.96),rgba(11,15,21,.96));color:var(--modern-ink);box-shadow:0 30px 100px rgba(0,0,0,.58);animation:modal-slide-in .22s ease-out}.drawer-close{position:absolute;top:14px;right:14px;z-index:2;width:36px;height:36px;border:1px solid var(--modern-line);border-radius:50%;background:rgba(255,255,255,.06);color:var(--modern-ink);font-size:22px;line-height:1;transition:.2s}.drawer-close:hover{background:rgba(255,255,255,.14);border-color:var(--modern-accent);color:var(--modern-accent);transform:rotate(90deg)}.brief-drawer .primary-action,.dispute-modal .primary-action{width:100%;justify-content:center}.modal-actions{display:flex;gap:10px;margin-top:18px}.modal-actions>*{flex:1}@keyframes modal-fade-in{from{opacity:0}to{opacity:1}}@keyframes modal-slide-in{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
 @media(max-width:760px){.auth-layout{display:block;padding:44px 16px 64px}.auth-story{margin-bottom:28px}.auth-story h1{font-size:clamp(52px,16vw,76px)}.auth-proof{display:none}.auth-card{border-radius:20px;padding:18px!important}.drawer-backdrop,.modal-backdrop{padding:12px}.brief-drawer,.dispute-modal{max-height:92dvh;border-radius:18px}.modal-actions{display:grid}.opus-clip:hover,.discover-card:hover,.portfolio-card:hover,.feed-card:hover{transform:none}}
+
+
+/* Authentication feedback and responsive guardrails. */
+html,body{max-width:100%;overflow-x:hidden}
+.auth-page{width:100%;min-width:0;overflow-x:hidden}
+.auth-email-form input{width:100%;box-sizing:border-box;padding:12px 16px;background:#262626;border:1px solid #404040;border-radius:8px;color:#fff;outline:none;transition:border-color .2s ease,box-shadow .2s ease}
+.auth-email-form input::placeholder{color:#a3a3a3}
+.auth-email-form input:focus{border-color:#10b981;box-shadow:0 0 0 3px rgba(16,185,129,.14)}
+.auth-email-form input:disabled{opacity:.65;cursor:not-allowed}
+.auth-email-form button:disabled,.auth-primary:disabled{opacity:.62;cursor:not-allowed;transform:none}
+.auth-notice{margin:14px 0 0;padding:12px 14px;border:1px solid;border-radius:10px;font-size:13px;line-height:1.5}
+.auth-notice-success{color:#b9ffcf;background:rgba(16,185,129,.09);border-color:rgba(16,185,129,.32)}
+.auth-notice-error{color:#fecaca;background:rgba(239,68,68,.09);border-color:rgba(239,68,68,.32)}
+.auth-notice-info{color:#d4d4d4;background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.12)}
+.auth-spinner{display:inline-block;width:15px;height:15px;flex:0 0 15px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:auth-spin .7s linear infinite;vertical-align:-3px}
+@keyframes auth-spin{to{transform:rotate(360deg)}}
+.auth-secondary,.auth-primary{display:flex;align-items:center;justify-content:center;gap:10px}
+
+/* Fixed centered overlay and bounded dialog sizing on every viewport. */
+.drawer-backdrop,.modal-backdrop{position:fixed!important;inset:0!important;z-index:50!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:16px!important;box-sizing:border-box!important;background:rgba(0,0,0,.7)!important;backdrop-filter:blur(4px)!important;-webkit-backdrop-filter:blur(4px)!important}
+.brief-drawer,.dispute-modal{position:relative!important;width:min(100%,28rem)!important;max-width:28rem!important;max-height:90vh!important;max-height:90dvh!important;overflow-y:auto!important;box-sizing:border-box!important;margin:0!important;padding:24px!important;border:1px solid #262626!important;border-radius:16px!important;background:#171717!important;color:#f5f5f5!important;box-shadow:0 25px 60px rgba(0,0,0,.45)!important}
+.drawer-close{z-index:2;cursor:pointer}
+@media(max-width:600px){.auth-card{width:100%;max-width:100%;box-sizing:border-box}.auth-layout{min-width:0}.role-picker{grid-template-columns:1fr}.auth-header{padding-inline:16px}}

@@ -1,47 +1,185 @@
 'use client';
-import {FormEvent,useEffect,useState} from 'react';
-import {useLogin,usePrivy} from '@privy-io/react-auth';
 
-function PrivyAuthPanel({email}:{email:string}){
-  const [error,setError]=useState('');
-  const {login}=useLogin({onComplete:()=>{window.location.href='/dashboard';},onError:(error:unknown)=>setError(String((error as {message?:string})?.message||error))} as any);
-  const {ready,authenticated}=usePrivy();
-  const start=()=>{setError('');login(({prefill:email.trim()?{type:'email',value:email.trim()}:undefined} as any));};
-  if(authenticated) return <div className="auth-ready"><strong>You are already signed in.</strong><a className="auth-primary" href="/dashboard">Open workspace <span>↗</span></a></div>;
-  return <div className="auth-actions">
-    <button className="auth-primary" onClick={start} disabled={!ready}>{ready?'Continue with pumpclips':'Loading secure sign-in…'} <span>↗</span></button>
-    <p className="auth-helper">Email, Google, X, TikTok, Twitch, and Solana wallet sign-in are handled securely by Privy. Kick can be enabled once its OAuth provider is configured in Privy.</p>
-    {error&&<p className="auth-error" role="alert">{error}. Please try again.</p>}
-  </div>;
-}
+import { FormEvent, useEffect, useState } from 'react';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-function GoogleFallback(){
-  const [busy,setBusy]=useState(false),[message,setMessage]=useState('');
-  const start=async()=>{
-    setBusy(true);setMessage('');
-    try{
-      const response=await fetch('/api/v1/auth/google/start',{redirect:'manual'});
-      if(response.type==='opaqueredirect'||response.status===0){window.location.href='/api/v1/auth/google/start';return;}
-      if(!response.ok){const body=await response.json().catch(()=>({}));setMessage(body.code==='GOOGLE_NOT_CONFIGURED'?'Google sign-in is being connected. Use the secure Privy sign-in when it is enabled.':'Sign-in is temporarily unavailable.');setBusy(false);return;}
-      window.location.href=response.url||'/api/v1/auth/google/start';
-    }catch{setMessage('Sign-in is temporarily unavailable. Please try again.');setBusy(false);}
+type AuthNotice = { kind: 'success' | 'error' | 'info'; text: string } | null;
+
+export default function AuthPage() {
+  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [role, setRole] = useState<'streamer' | 'clipper'>('clipper');
+  const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
+  const [configLoading, setConfigLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<AuthNotice>(null);
+
+  useEffect(() => {
+    const savedRole = window.localStorage.getItem('pumpclips_signup_role');
+    if (savedRole === 'streamer' || savedRole === 'clipper') setRole(savedRole);
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('mode') === 'signup') setMode('signup');
+    if (params.get('confirmed') === '1') {
+      setNotice({ kind: 'success', text: 'Email confirmed. Sign in to continue.' });
+    }
+    const authError = params.get('error');
+    if (authError === 'google_not_configured') {
+      setNotice({ kind: 'error', text: 'Google sign-in is not configured for this deployment.' });
+    } else if (authError === 'oauth_failed' || authError === 'oauth_state') {
+      setNotice({ kind: 'error', text: 'That sign-in attempt expired or could not be verified. Please try again.' });
+    }
+
+    let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
+    const initialize = async () => {
+      try {
+        const response = await fetch('/api/v1/auth/config', { cache: 'no-store' });
+        const config = await response.json().catch(() => ({}));
+        if (!response.ok || !config.url || !config.anonKey) {
+          throw new Error(config.message || 'Authentication is not configured yet. Add the Supabase URL and anon key to the deployment environment.');
+        }
+        const client = createClient(config.url, config.anonKey, {
+          auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+        });
+        if (cancelled) return;
+        setSupabase(client);
+        const { data: listener } = client.auth.onAuthStateChange((_event, session) => {
+          if (session) window.location.replace('/dashboard');
+        });
+        unsubscribe = () => listener.subscription.unsubscribe();
+        const { data } = await client.auth.getSession();
+        if (data.session && !cancelled) window.location.replace('/dashboard');
+      } catch (error) {
+        if (!cancelled) {
+          setNotice({ kind: 'error', text: error instanceof Error ? error.message : 'Authentication setup is unavailable.' });
+        }
+      } finally {
+        if (!cancelled) setConfigLoading(false);
+      }
+    };
+    void initialize();
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
+  }, []);
+
+  const chooseRole = (value: 'streamer' | 'clipper') => {
+    setRole(value);
+    window.localStorage.setItem('pumpclips_signup_role', value);
   };
-  return <div className="auth-actions"><button className="auth-primary" onClick={start} disabled={busy}>{busy?'Connecting…':'Continue with Google'} <span>↗</span></button><p className="auth-helper">Your account is protected with encrypted sessions and a seven-day sign-in.</p>{message&&<p className="auth-error" role="alert">{message}</p>}</div>;
-}
 
-export default function AuthPage(){
-  const hasPrivy=Boolean(process.env.NEXT_PUBLIC_PRIVY_APP_ID);
-  const [mode,setMode]=useState<'signin'|'signup'>('signin');
-  const [email,setEmail]=useState('');
-  const [note,setNote]=useState('');
-  const [role,setRole]=useState<'streamer'|'clipper'>('clipper');
-  useEffect(()=>{const saved=window.localStorage.getItem('pumpclips_signup_role');if(saved==='streamer'||saved==='clipper')setRole(saved);},[]);
-  const chooseRole=(value:'streamer'|'clipper')=>{setRole(value);window.localStorage.setItem('pumpclips_signup_role',value);};
-  useEffect(()=>{const params=new URLSearchParams(window.location.search);if(params.get('mode')==='signup')setMode('signup');const requestedRole=params.get('role');if(requestedRole==='streamer'||requestedRole==='clipper'){setRole(requestedRole);window.localStorage.setItem('pumpclips_signup_role',requestedRole);}const error=params.get('error');if(error==='google_not_configured')setNote('Google sign-in is not configured on this deployment yet. Use the secure sign-in provider below once it is enabled.');if(error==='oauth_failed'||error==='oauth_state')setNote('That sign-in attempt expired or could not be verified. Please try again.');},[]);
-  const submit=(event:FormEvent)=>{event.preventDefault();if(!email.trim()){setNote('Enter your email to continue.');return;}setNote('Choose the secure sign-in button below to finish creating your account.');};
-  return <main className="auth-page">
-    <header className="auth-header"><a className="auth-brand" href="/"><img src="/pumpclips-mark.jpg" alt=""/><span>pumpclips</span></a><a className="auth-back" href="/">Back to home <span>↗</span></a></header>
-    <section className="auth-layout"><div className="auth-story"><span className="auth-kicker">PUMPCLIPS / CREATOR NETWORK</span><h1>Make your<br/><em>next move.</em></h1><p>One account for creators, clippers, campaigns, and rewards. Start with the workspace that keeps the work moving.</p><div className="auth-proof"><span>01</span><p><strong>Source to signal.</strong><br/>Bring long-form video into a network built around the moment that matters.</p></div><div className="auth-proof"><span>02</span><p><strong>Work with trust.</strong><br/>Clear briefs, visible profiles, and rewards that follow the work.</p></div></div>
-      <div className="auth-card"><div className="auth-tabs" role="tablist"><button className={mode==='signin'?'active':''} onClick={()=>{setMode('signin');setNote('')}}>Sign in</button><button className={mode==='signup'?'active':''} onClick={()=>{setMode('signup');setNote('')}}>Create account</button></div><div className="auth-card-heading"><span className="auth-kicker">{mode==='signin'?'WELCOME BACK':'JOIN THE NETWORK'}</span><h2>{mode==='signin'?'Get back to the work.':'Build your account.'}</h2><p>{mode==='signin'?'Pick up your campaigns, cuts, and conversations.':'Create one secure account and choose your role as you go.'}</p></div>{mode==='signup'&&<div className="role-picker" aria-label="Choose your role"><button type="button" className={role==='clipper'?'selected':''} onClick={()=>chooseRole('clipper')}><strong>Clipper</strong><span>Find moments, publish cuts, earn.</span></button><button type="button" className={role==='streamer'?'selected':''} onClick={()=>chooseRole('streamer')}><strong>Streamer</strong><span>Launch a pump, grow your reach.</span></button></div>}<form className="auth-email-form" onSubmit={submit}><label>Email address<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@studio.com" autoComplete="email"/></label><button className="auth-secondary" type="submit">{mode==='signin'?'Continue with email':'Start with email'} <span>↗</span></button></form>{note&&<p className="auth-note" role="status">{note}</p>}<div className="auth-divider"><span>or continue securely</span></div>{hasPrivy?<PrivyAuthPanel email={email}/>:<GoogleFallback/>}<p className="auth-terms">By continuing, you agree to the pumpclips <a href="/">Terms</a> and <a href="/">Privacy</a>. No seed phrase is ever requested.</p></div></section>
-  </main>;
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setNotice(null);
+    if (!supabase) {
+      setNotice({ kind: 'error', text: 'Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to the deployment environment.' });
+      return;
+    }
+    setBusy(true);
+    try {
+      const normalizedEmail = email.trim();
+      if (mode === 'signup') {
+        const { data, error } = await supabase.auth.signUp({
+          email: normalizedEmail,
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth?confirmed=1`,
+            data: { role },
+          },
+        });
+        if (error) throw error;
+        if (!data.session) {
+          setNotice({ kind: 'success', text: 'Account created. Check your inbox for a confirmation email, then return here to sign in.' });
+        } else {
+          setNotice({ kind: 'success', text: 'Your account is ready. Opening your workspace…' });
+          window.location.replace('/dashboard');
+        }
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
+        if (error) throw error;
+        setNotice({ kind: 'success', text: 'Signed in successfully. Opening your workspace…' });
+        window.location.replace('/dashboard');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Authentication failed. Please try again.';
+      setNotice({ kind: 'error', text: message });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const signInWithGoogle = async () => {
+    setNotice(null);
+    if (!supabase) {
+      setNotice({ kind: 'error', text: 'Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to the deployment environment.' });
+      return;
+    }
+    setBusy(true);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/auth` },
+    });
+    if (error) {
+      setNotice({ kind: 'error', text: error.message || 'Google sign-in failed. Please try again.' });
+      setBusy(false);
+    }
+  };
+
+  const switchMode = (next: 'signin' | 'signup') => {
+    setMode(next);
+    setNotice(null);
+    setPassword('');
+  };
+
+  return (
+    <main className="auth-page">
+      <header className="auth-header">
+        <a className="auth-brand" href="/"><img src="/pumpclips-mark.jpg" alt=""/><span>pumpclips</span></a>
+        <a className="auth-back" href="/">Back to home <span>↗</span></a>
+      </header>
+      <section className="auth-layout">
+        <div className="auth-story">
+          <span className="auth-kicker">PUMPCLIPS / CREATOR NETWORK</span>
+          <h1>Make your<br/><em>next move.</em></h1>
+          <p>One account for creators, clippers, campaigns, and rewards. Start with the workspace that keeps the work moving.</p>
+          <div className="auth-proof"><span>01</span><p><strong>Source to signal.</strong><br/>Bring long-form video into a network built around the moment that matters.</p></div>
+          <div className="auth-proof"><span>02</span><p><strong>Work with trust.</strong><br/>Clear briefs, visible profiles, and rewards that follow the work.</p></div>
+        </div>
+        <div className="auth-card">
+          <div className="auth-tabs" role="tablist" aria-label="Authentication">
+            <button type="button" role="tab" aria-selected={mode === 'signin'} className={mode === 'signin' ? 'active' : ''} onClick={() => switchMode('signin')}>Sign in</button>
+            <button type="button" role="tab" aria-selected={mode === 'signup'} className={mode === 'signup' ? 'active' : ''} onClick={() => switchMode('signup')}>Create account</button>
+          </div>
+          <div className="auth-card-heading">
+            <span className="auth-kicker">{mode === 'signin' ? 'WELCOME BACK' : 'JOIN THE NETWORK'}</span>
+            <h2>{mode === 'signin' ? 'Get back to the work.' : 'Build your account.'}</h2>
+            <p>{mode === 'signin' ? 'Pick up your campaigns, cuts, and conversations.' : 'Create one secure account and choose your role as you go.'}</p>
+          </div>
+          {mode === 'signup' && <div className="role-picker" aria-label="Choose your role">
+            <button type="button" className={role === 'clipper' ? 'selected' : ''} aria-pressed={role === 'clipper'} onClick={() => chooseRole('clipper')}><strong>Clipper</strong><span>Find moments, publish cuts, earn.</span></button>
+            <button type="button" className={role === 'streamer' ? 'selected' : ''} aria-pressed={role === 'streamer'} onClick={() => chooseRole('streamer')}><strong>Streamer</strong><span>Launch a pump, grow your reach.</span></button>
+          </div>}
+          <form className="auth-email-form" onSubmit={submit}>
+            <label>Email address<input type="email" value={email} onChange={event => setEmail(event.target.value)} placeholder="you@studio.com" autoComplete="email" required disabled={busy}/></label>
+            <label>Password<input type="password" value={password} onChange={event => setPassword(event.target.value)} placeholder={mode === 'signup' ? 'At least 8 characters' : 'Enter your password'} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} minLength={mode === 'signup' ? 8 : undefined} required disabled={busy}/></label>
+            <button className="auth-secondary" type="submit" disabled={busy || configLoading || !supabase}>
+              {busy ? <><span className="auth-spinner" aria-hidden="true"/>{mode === 'signin' ? 'Signing in…' : 'Creating account…'}</> : mode === 'signin' ? 'Sign in with email' : 'Create account'}
+            </button>
+          </form>
+          {notice && <p className={`auth-notice auth-notice-${notice.kind}`} role={notice.kind === 'error' ? 'alert' : 'status'} aria-live="polite">{notice.text}</p>}
+          <div className="auth-divider"><span>or</span></div>
+          <div className="auth-actions">
+            <button className="auth-primary" type="button" onClick={signInWithGoogle} disabled={busy || configLoading || !supabase}>
+              {busy ? <><span className="auth-spinner" aria-hidden="true"/>Connecting…</> : <>Continue with Google <span>↗</span></>}
+            </button>
+            <p className="auth-helper">Secure sign-in powered by Supabase. Your account is protected with encrypted sessions.</p>
+          </div>
+          <p className="auth-terms">By continuing, you agree to the pumpclips <a href="/">Terms</a> and <a href="/">Privacy</a>. No seed phrase is ever requested.</p>
+        </div>
+      </section>
+    </main>
+  );
 }
