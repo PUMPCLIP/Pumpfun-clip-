@@ -1,7 +1,9 @@
 import pg from 'pg';
+const databaseUrl=process.env.DATABASE_URL||'';
+const ssl=process.env.DATABASE_SSL==='disable'?undefined:(databaseUrl?{rejectUnauthorized:false}:undefined);
 const [operation,id,outcome]=process.argv.slice(2);
 if(!['list','resolve'].includes(operation)){console.error('Usage: node scripts/reports.mjs list | resolve REPORT_ID reviewed|dismissed');process.exit(2);}
-const db=new pg.Client({connectionString:process.env.DATABASE_URL});await db.connect();
+const db=new pg.Client({connectionString:databaseUrl,ssl});await db.connect();
 try{
  if(operation==='list'){
   const r=await db.query("SELECT r.id,r.created_at,r.reason,r.state,r.submission_id,s.campaign_id,s.state AS submission_state FROM content_reports r JOIN submissions s ON s.id=r.submission_id WHERE r.state='open' ORDER BY r.created_at LIMIT 100");console.log(JSON.stringify(r.rows,null,2));

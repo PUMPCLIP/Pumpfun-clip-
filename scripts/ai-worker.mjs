@@ -1,4 +1,6 @@
 import pg from 'pg';
+const databaseUrl=process.env.DATABASE_URL||'';
+const ssl=process.env.DATABASE_SSL==='disable'?undefined:(databaseUrl?{rejectUnauthorized:false}:undefined);
 import {spawn} from 'node:child_process';
 import {readFile,unlink} from 'node:fs/promises';
 import crypto from 'node:crypto';
@@ -6,7 +8,7 @@ import path from 'node:path';
 import os from 'node:os';
 import {S3Client,GetObjectCommand} from '@aws-sdk/client-s3';
 
-const db=new pg.Client({connectionString:process.env.DATABASE_URL});
+const db=new pg.Client({connectionString:databaseUrl,ssl});
 const LEASE_MS=Number(process.env.WORKER_LEASE_MS||15*60*1000);
 const media=process.env.MEDIA_BUCKET?new S3Client({region:process.env.MEDIA_REGION||'auto',endpoint:process.env.MEDIA_ENDPOINT||undefined,forcePathStyle:!!process.env.MEDIA_ENDPOINT,credentials:process.env.MEDIA_ACCESS_KEY_ID&&process.env.MEDIA_SECRET_ACCESS_KEY?{accessKeyId:process.env.MEDIA_ACCESS_KEY_ID,secretAccessKey:process.env.MEDIA_SECRET_ACCESS_KEY}:undefined}):null;
 const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));

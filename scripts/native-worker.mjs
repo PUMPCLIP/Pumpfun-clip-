@@ -9,7 +9,7 @@ import {fileURLToPath} from 'node:url';
 import {S3Client,GetObjectCommand,PutObjectCommand,DeleteObjectCommand} from '@aws-sdk/client-s3';
 
 const databaseUrl=process.env.DATABASE_URL||'';
-const ssl=process.env.DATABASE_SSL==='disable'?undefined:(process.env.DATABASE_SSL==='require'||/[?&]sslmode=(require|verify-ca|verify-full)(?:&|$)/i.test(databaseUrl)?{rejectUnauthorized:false}:undefined);
+const ssl=process.env.DATABASE_SSL==='disable'?undefined:(databaseUrl?{rejectUnauthorized:false}:undefined);
 const db=new pg.Client({connectionString:databaseUrl,ssl,connectionTimeoutMillis:10000});
 const root=path.resolve(process.env.VIDEO_WORKDIR||'data/private/native-clips');
 const LEASE_MS=Number(process.env.WORKER_LEASE_MS||15*60*1000);

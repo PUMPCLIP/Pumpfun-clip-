@@ -5,7 +5,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const databaseUrl=process.env.DATABASE_URL||'';
-const ssl=process.env.DATABASE_SSL==='disable'?undefined:(process.env.DATABASE_SSL==='require'||/[?&]sslmode=(require|verify-ca|verify-full)(?:&|$)/i.test(databaseUrl)?{rejectUnauthorized:false}:undefined);
+const ssl=process.env.DATABASE_SSL==='disable'?undefined:(databaseUrl?{rejectUnauthorized:false}:undefined);
 const db=new pg.Client({connectionString:databaseUrl,ssl,connectionTimeoutMillis:10000});
 const python=process.env.PUMPCLIP_PYTHON||'python3';
 const engine=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../engine/video.py');

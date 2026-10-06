@@ -1,5 +1,7 @@
 import fs from 'node:fs';
 import pg from 'pg';
+const databaseUrl=process.env.DATABASE_URL||'';
+const ssl=process.env.DATABASE_SSL==='disable'?undefined:(databaseUrl?{rejectUnauthorized:false}:undefined);
 import bs58 from 'bs58';
 import {Connection,Keypair,PublicKey,SystemProgram,Transaction} from '@solana/web3.js';
 const [command,...args]=process.argv.slice(2);
@@ -9,7 +11,7 @@ if(process.env.SOLANA_CLUSTER!=='devnet') throw new Error('Payout operator only 
 if(!process.env.SOL_TREASURY||!process.env.DATABASE_URL) throw new Error('Set SOL_TREASURY and DATABASE_URL');
 const connection=new Connection(process.env.SOLANA_RPC_URL||'https://api.devnet.solana.com','confirmed');
 if(await connection.getGenesisHash()!=='GH7ome3EiwEr7tu9JuTh2dpYWBJK3z69Xm1ZE3MEE6JC')throw new Error('RPC is not Solana devnet');
-const db=new pg.Client({connectionString:process.env.DATABASE_URL});await db.connect();
+const db=new pg.Client({connectionString:databaseUrl,ssl});await db.connect();
 const id=option('award'),execute=args.includes('--execute');
 try {
   const query=async(sql,values=[])=>db.query(sql,values);
