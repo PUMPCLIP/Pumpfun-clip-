@@ -6,6 +6,7 @@ import path from 'node:path';
 import os from 'node:os';
 import {S3Client,GetObjectCommand,PutObjectCommand} from '@aws-sdk/client-s3';
 import {getSignedUrl} from '@aws-sdk/s3-request-presigner';
+import {localMediaPath} from './media-root.mjs';
 
 const runId=process.argv[2]||'';
 if(!/^[A-Za-z0-9][A-Za-z0-9-]{2,63}$/.test(runId))throw new Error('Pass a safe, unique pipeline smoke run id (3-64 alphanumeric/hyphen characters).');
@@ -29,7 +30,6 @@ const media=mediaBucket?new S3Client({
     ?{accessKeyId:process.env.MEDIA_ACCESS_KEY_ID,secretAccessKey:process.env.MEDIA_SECRET_ACCESS_KEY}
     :undefined,
 }):null;
-const privateRoot=path.resolve('data/private');
 const sourceKey=`pipeline-smoke/${runId}/big-buck-bunny-33s.mp4`;
 const analysisKey=`pipeline-smoke:${runId}:analysis`;
 const assetClipKey=`pipeline-smoke:${runId}:asset-clip`;
@@ -40,10 +40,7 @@ function log(event,details={}){
   console.log(JSON.stringify({event,runId,at:new Date().toISOString(),...details}));
 }
 function localPath(key){
-  if(!/^[a-zA-Z0-9][a-zA-Z0-9._/-]{0,240}$/.test(key)||key.split('/').includes('..'))throw new Error('Invalid private media key');
-  const resolved=path.resolve(privateRoot,key);
-  if(!resolved.startsWith(privateRoot+path.sep))throw new Error('Invalid private media path');
-  return resolved;
+  return localMediaPath(key);
 }
 function execute(command,args,{timeoutMs=120000}={}){
   return new Promise((resolve,reject)=>{

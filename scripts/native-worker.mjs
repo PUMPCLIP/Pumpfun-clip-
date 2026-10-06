@@ -7,11 +7,12 @@ import {pipeline} from 'node:stream/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {S3Client,GetObjectCommand,PutObjectCommand,DeleteObjectCommand} from '@aws-sdk/client-s3';
+import {localMediaPath,mediaWorkdir} from './media-root.mjs';
 
 const databaseUrl=process.env.DATABASE_URL||'';
 const ssl=process.env.DATABASE_SSL==='disable'?undefined:(databaseUrl?{rejectUnauthorized:false}:undefined);
 const db=new pg.Client({connectionString:databaseUrl,ssl,connectionTimeoutMillis:10000});
-const root=path.resolve(process.env.VIDEO_WORKDIR||'data/private/native-clips');
+const root=mediaWorkdir();
 const LEASE_MS=Number(process.env.WORKER_LEASE_MS||15*60*1000);
 const python=process.env.PUMPCLIP_PYTHON||'python3';
 const engine=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../engine/video.py');
@@ -23,7 +24,7 @@ let activeProcess=null;
 
 async function objectToFile(key,target){
   if(!keySafe(key))throw new Error('Invalid media object key');
-  if(!media){const source=path.resolve('data/private',key);const rootLocal=path.resolve('data/private')+path.sep;if(!source.startsWith(rootLocal))throw new Error('Invalid local media path');return source;}
+  if(!media)return localMediaPath(key);
   const result=await media.send(new GetObjectCommand({Bucket:bucket,Key:key}));
   if(Number(result.ContentLength||0)>512*1024*1024)throw new Error('Source video exceeds the 512 MiB processing limit');
   try{
@@ -88,7 +89,7 @@ async function persistOutput(job,outputPath,rendered){
  const hash=crypto.createHash('sha256');
  const digest=await new Promise((resolve,reject)=>{const stream=createReadStream(outputPath);stream.on('data',chunk=>hash.update(chunk));stream.on('error',reject);stream.on('end',()=>resolve(hash.digest('hex')));});
  if(media)await media.send(new PutObjectCommand({Bucket:bucket,Key:objectKey,Body:createReadStream(outputPath),ContentLength:fileStats.size,ContentType:'video/mp4',ServerSideEncryption:process.env.MEDIA_SSE==='AES256'?'AES256':undefined}));
- else{const target=path.resolve('data/private',objectKey);const localRoot=path.resolve('data/private')+path.sep;if(!target.startsWith(localRoot))throw new Error('Invalid output key');await mkdir(path.dirname(target),{recursive:true,mode:0o700});await copyFile(outputPath,target);await chmod(target,0o600);}
+ else{const target=localMediaPath(objectKey);await mkdir(path.dirname(target),{recursive:true,mode:0o700});await copyFile(outputPath,target);await chmod(target,0o600);}
  try{
   await db.query('BEGIN');
   const asset=await db.query(`INSERT INTO media_assets(owner_id,kind,object_key,sha256,mime,byte_size,status)
@@ -103,7 +104,7 @@ async function persistOutput(job,outputPath,rendered){
   }
   await db.query('COMMIT');
   return asset.rows[0].id;
- }catch(error){await db.query('ROLLBACK').catch(()=>{});if(media)await media.send(new DeleteObjectCommand({Bucket:bucket,Key:objectKey})).catch(()=>{});else await unlink(path.resolve('data/private',objectKey)).catch(()=>{});throw error;}
+ }catch(error){await db.query('ROLLBACK').catch(()=>{});if(media)await media.send(new DeleteObjectCommand({Bucket:bucket,Key:objectKey})).catch(()=>{});else await unlink(localMediaPath(objectKey)).catch(()=>{});throw error;}
 }
 
 async function processJob(job){

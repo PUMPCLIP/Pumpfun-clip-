@@ -30,7 +30,8 @@ Copy `.env.example` into a secret-management workflow; do not commit a populated
 - `PUMPCLIP_DECIMALS` and the fee/threshold settings
 - `MEDIA_BUCKET`, `MEDIA_REGION`, `MEDIA_ENDPOINT`, `MEDIA_ACCESS_KEY_ID`, `MEDIA_SECRET_ACCESS_KEY`
 - `MEDIA_SSE=AES256` where supported by the storage provider
-- `VIDEO_WORKDIR=data/private/native-clips`
+- `PUMPCLIP_MEDIA_ROOT=/var/data/pumpclip` when using a Render persistent disk
+- `VIDEO_WORKDIR=/var/data/pumpclip/native-clips` when using that disk for native-job scratch space
 - `SOCIAL_TOKEN_KEY` as exactly 32 random bytes encoded as base64 if any social connection is enabled
 - Provider credentials only for integrations deliberately enabled in the pilot
 - `OPENAI_API_KEY` only for the optional AI worker
@@ -40,6 +41,14 @@ Keep `ALLOW_DEV_AUTH=false` on HTTPS staging. Never place Solana signer keypairs
 ## Private R2-compatible media
 
 Use a private Cloudflare R2 bucket or another S3-compatible private bucket. Configure the **same bucket, endpoint, region, and credentials** on the web service and every worker. The application uses signed media access and server-side bucket access; it does not require a public bucket.
+
+### Render persistent disk limitation
+
+`PUMPCLIP_MEDIA_ROOT` is now honored consistently by web uploads, the native worker, the studio worker, and the pipeline smoke runner. A Render persistent disk mounted at `/var/data` survives restarts and deploys for **one service instance**. It is not a shared filesystem across multiple Render instances or separate web/worker services. Therefore:
+
+- Use the absolute paths above only when the upload process and the worker run on the same Render service instance.
+- Keep the service at one instance while using disk-backed local media, and do not run a separate worker service against that disk.
+- For multi-instance web/worker deployments, configure `MEDIA_BUCKET` with the same private S3-compatible bucket on every service. This remains the supported shared-storage configuration.
 
 Recommended controls:
 

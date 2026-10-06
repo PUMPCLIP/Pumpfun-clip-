@@ -6,9 +6,10 @@ import {spawn} from 'node:child_process';
 import {mkdir,readFile,writeFile,unlink} from 'node:fs/promises';
 import path from 'node:path';
 import {S3Client,GetObjectCommand,PutObjectCommand} from '@aws-sdk/client-s3';
+import {mediaRoot,localMediaPath} from './media-root.mjs';
 
 const client=new pg.Client({connectionString:databaseUrl,ssl});
-const storage=path.resolve('data/private');
+const storage=mediaRoot;
 const LEASE_MS=Number(process.env.WORKER_LEASE_MS||15*60*1000);
 const media=process.env.MEDIA_BUCKET?new S3Client({region:process.env.MEDIA_REGION||'auto',endpoint:process.env.MEDIA_ENDPOINT||undefined,forcePathStyle:!!process.env.MEDIA_ENDPOINT,credentials:process.env.MEDIA_ACCESS_KEY_ID&&process.env.MEDIA_SECRET_ACCESS_KEY?{accessKeyId:process.env.MEDIA_ACCESS_KEY_ID,secretAccessKey:process.env.MEDIA_SECRET_ACCESS_KEY}:undefined}):null;
 const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
@@ -17,7 +18,7 @@ const keySafe=value=>typeof value==='string'&&/^[a-zA-Z0-9][a-zA-Z0-9._/-]{0,240
 
 async function sourceFile(key){
   if(!keySafe(key))throw new Error('Invalid media object key');
-  if(!media){const resolved=path.resolve(storage,key);if(!resolved.startsWith(storage+path.sep))throw new Error('Invalid local media path');return resolved;}
+  if(!media)return localMediaPath(key);
   const result=await media.send(new GetObjectCommand({Bucket:process.env.MEDIA_BUCKET,Key:key}));
   const temp=path.join(storage,crypto.randomUUID()+'.source');
   await mkdir(storage,{recursive:true});
