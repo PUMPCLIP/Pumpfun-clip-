@@ -17,8 +17,24 @@ export async function GET() {
     );
   }
 
+  let projectUrl: URL;
+  try {
+    projectUrl = new URL(url);
+    if (projectUrl.protocol !== 'https:' && projectUrl.protocol !== 'http:') {
+      throw new Error('Unsupported Supabase URL protocol');
+    }
+    projectUrl.pathname = projectUrl.pathname.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
+    projectUrl.search = '';
+    projectUrl.hash = '';
+  } catch {
+    return NextResponse.json(
+      { configured: false, message: 'The Supabase URL must be a valid project URL.' },
+      { status: 503, headers: { 'Cache-Control': 'no-store, max-age=0' } },
+    );
+  }
+
   return NextResponse.json(
-    { configured: true, url, anonKey },
+    { configured: true, url: projectUrl.toString().replace(/\/$/, ''), anonKey },
     { headers: { 'Cache-Control': 'no-store, max-age=0' } },
   );
 }
