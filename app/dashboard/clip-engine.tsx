@@ -1,6 +1,8 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
+import {PublicKey,SystemProgram,Transaction} from '@solana/web3.js';
+import {walletFor} from '@/lib/browser-wallet';
 
 type ClipJob = {
   id: string;
@@ -16,6 +18,7 @@ type ClipJob = {
 };
 
 type ApiPayload<T> = T & { message?: string; code?: string };
+type ClipPlan = {trial:{total:number;remaining:number};plan:{status:'active';name:string;monthlyClips:number;used:number;remaining:number;periodStart:string;periodEnd:string}|null;payment:{amountLamports:string;amountSol:string;destination:string;network:string}|null;wallet:string|null};
 
 const csrf = () => decodeURIComponent(document.cookie.split('; ').find(cookie => cookie.startsWith('pc_csrf='))?.split('=')[1] || '');
 const assetUrl = (id: string) => `/api/v1/assets/${encodeURIComponent(id)}`;
@@ -24,7 +27,7 @@ const previewAspect = (ratio: ClipJob['aspect_ratio']) => ratio === '16:9' ? '16
 
 async function readResponse<T>(response: Response): Promise<ApiPayload<T>> {
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.message || data.code || 'The request could not be completed.');
+  if (!response.ok) { const error = new Error(data.message || data.code || 'The request could not be completed.') as Error & { code?: string }; error.code = data.code; throw error; }
   return data as ApiPayload<T>;
 }
 
@@ -44,6 +47,9 @@ export default function ClipEngine() {
   const [notice, setNotice] = useState('');
   const [authRequired, setAuthRequired] = useState(false);
   const [jobs, setJobs] = useState<ClipJob[]>([]);
+  const [plan, setPlan] = useState<ClipPlan | null>(null);
+  const [planBusy, setPlanBusy] = useState(false);
+  const [showPlan, setShowPlan] = useState(false);
 
   const refreshJobs = useCallback(async () => {
     try {
@@ -61,11 +67,39 @@ export default function ClipEngine() {
     }
   }, []);
 
+  const refreshPlan = useCallback(async () => {
+    try {
+      const response = await fetch('/api/v1/clip-plan', { cache: 'no-store' });
+      if (response.status === 401) { setAuthRequired(true); return; }
+      setPlan(await readResponse<ClipPlan>(response) as ClipPlan);
+    } catch (caught) { setError(caught instanceof Error ? caught.message : 'Could not load your clip plan.'); }
+  }, []);
+
   useEffect(() => {
     void refreshJobs();
+    void refreshPlan();
     const timer = window.setInterval(() => { void refreshJobs(); }, 4000);
     return () => window.clearInterval(timer);
-  }, [refreshJobs]);
+  }, [refreshJobs, refreshPlan]);
+
+  const startPlan = async () => {
+    setPlanBusy(true); setError('');
+    try {
+      const intent = await readResponse<{id:string;amountLamports:string;destination:string;wallet:string}>(await fetch('/api/v1/clip-plan', {
+        method: 'POST', headers: {'content-type':'application/json','x-csrf-token':csrf(),'idempotency-key':crypto.randomUUID()}, body: '{}',
+      }));
+      const provider = walletFor(intent.wallet);
+      const connected = await provider.connect();
+      if (connected.publicKey.toBase58() !== intent.wallet) throw new Error('Connect the Solana wallet linked to your Pumpclip account.');
+      const transaction = new Transaction().add(SystemProgram.transfer({fromPubkey:connected.publicKey,toPubkey:new PublicKey(intent.destination),lamports:Number(intent.amountLamports)}));
+      const sent = await provider.signAndSendTransaction(transaction);
+      await readResponse(await fetch(`/api/v1/clip-plan/intents/${intent.id}/verify`, {
+        method:'POST', headers:{'content-type':'application/json','x-csrf-token':csrf()}, body:JSON.stringify({signature:sent.signature}),
+      }));
+      setShowPlan(false); setNotice('Payment verified. Your 20-clip monthly plan is active.'); await refreshPlan();
+    } catch (caught) { setError(caught instanceof Error ? caught.message : 'The clip plan payment could not be completed.'); }
+    finally { setPlanBusy(false); }
+  };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -136,6 +170,8 @@ export default function ClipEngine() {
       setJobs(current => [created, ...current.filter(job => job.id !== created.id)].slice(0, 12));
       void refreshJobs();
     } catch (caught) {
+      const code = (caught as {code?:string})?.code;
+      if (code === 'CLIP_TRIAL_EXHAUSTED' || code === 'CLIP_PLAN_LIMIT_REACHED') setShowPlan(true);
       setError(caught instanceof Error ? caught.message : 'Could not queue this clip.');
     } finally {
       setBusy(false);
@@ -151,6 +187,7 @@ export default function ClipEngine() {
     {authRequired && <div className="clip-engine-signin" role="status"><strong>Sign in to use the clip engine.</strong><span>Your private uploads, render jobs, and results are tied to your account.</span><a href="/auth">Sign in or create an account ↗</a></div>}
     {error && <p className="clip-engine-error" role="alert">{error}</p>}
     {notice && <p className="clip-engine-notice" role="status" aria-live="polite">{notice}</p>}
+    {!authRequired && plan && <div className="clip-engine-plan panel" role="status"><div><span className="kicker">CLIP ACCESS</span><strong>{plan.plan ? `${plan.plan.remaining} of ${plan.plan.monthlyClips} monthly clips remaining` : `${plan.trial.remaining} of ${plan.trial.total} free clips remaining`}</strong><small>{plan.plan ? `Renews ${new Date(plan.plan.periodEnd).toLocaleDateString()}.` : 'Your first two clips are free.'}</small></div>{(!plan.plan && (showPlan || plan.trial.remaining === 0)) && <button className="primary-action" type="button" onClick={() => void startPlan()} disabled={planBusy || !plan.payment}>{planBusy ? 'Waiting for wallet…' : 'Unlock 20 clips · 2 SOL'}</button>}{plan.plan && <span className="clip-engine-plan-badge">MONTHLY PLAN</span>}</div>}
 
     {!authRequired && <div className="clip-engine-layout">
       <form className="clip-engine-form panel" onSubmit={submit}>

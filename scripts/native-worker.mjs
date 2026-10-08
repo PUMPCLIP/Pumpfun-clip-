@@ -75,6 +75,7 @@ async function failJob(job,message){
    if(ledger?.status==='reserved'){
     const metadata=ledger.metadata||{};
     await db.query('UPDATE ai_usage_accounts SET free_units=free_units+$2,balance_units=balance_units+$3,updated_at=now() WHERE user_id=$1',[ledger.user_id,Number(metadata.freeUnits||0),Number(metadata.paidUnits||0)]);
+    if(metadata.planClip)await db.query("UPDATE clip_plans SET clips_used=GREATEST(clips_used-1,0),updated_at=now() WHERE user_id=$1 AND status='active'",[ledger.user_id]);
     await db.query("UPDATE ai_usage_ledger SET status='released' WHERE id=$1 AND status='reserved'",[updated.rows[0].usage_ledger_id]);
    }
   }
