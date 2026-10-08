@@ -221,6 +221,38 @@ async function handle(request:Request,path:string[],method:string):Promise<Respo
       await audit(db,user.user_id,'submission.created','submission',row.id); return reply(row,201);
     } catch(e:any) {if(e.code==='23505') throw new ApiError('DUPLICATE_SUBMISSION',409); throw e;}
   }
+  if(p[0]==='campaigns' && p[1] && p[2]==='messages' && (method==='GET' || method==='POST')) {
+    const campaign=await one<any>('SELECT id,streamer_id FROM campaigns WHERE id=$1',[p[1]]);
+    if(!campaign) throw new ApiError('NOT_FOUND',404);
+    const member=campaign.streamer_id===user.user_id || await one('SELECT id FROM campaign_memberships WHERE campaign_id=$1 AND clipper_id=$2',[p[1],user.user_id]);
+    if(!member) throw new ApiError('CAMPAIGN_ACCESS_REQUIRED',403);
+    if(method==='GET') {
+      const rows=await db.query(`SELECT m.id,m.campaign_id,m.sender_id,m.body,m.visible_to_customer_care,m.created_at,u.display_name AS sender_name
+        FROM campaign_messages m JOIN users u ON u.id=m.sender_id WHERE m.campaign_id=$1 ORDER BY m.created_at ASC LIMIT 200`,[p[1]]);
+      return reply({items:rows.rows});
+    }
+    const data=await body(request,z.object({body:z.string().trim().min(1).max(4000)}));
+    const message=await one<any>(`INSERT INTO campaign_messages(campaign_id,sender_id,body) VALUES($1,$2,$3)
+      RETURNING id,campaign_id,sender_id,body,visible_to_customer_care,created_at`,[p[1],user.user_id,data.body]);
+    await audit(db,user.user_id,'campaign.message.created','campaign_message',message!.id,{campaignId:p[1]});
+    return reply(message,201);
+  }
+  if(p[0]==='campaigns' && p[1] && p[2]==='disputes' && (method==='GET' || method==='POST')) {
+    const campaign=await one<any>('SELECT id,streamer_id FROM campaigns WHERE id=$1',[p[1]]);
+    if(!campaign) throw new ApiError('NOT_FOUND',404);
+    const member=campaign.streamer_id===user.user_id || await one('SELECT id FROM campaign_memberships WHERE campaign_id=$1 AND clipper_id=$2',[p[1],user.user_id]);
+    if(!member) throw new ApiError('CAMPAIGN_ACCESS_REQUIRED',403);
+    if(method==='GET') {
+      const rows=await db.query(`SELECT d.*,u.display_name AS opened_by_name FROM campaign_disputes d JOIN users u ON u.id=d.opened_by
+        WHERE d.campaign_id=$1 ORDER BY d.created_at DESC`,[p[1]]);
+      return reply({items:rows.rows});
+    }
+    const data=await body(request,z.object({reason:z.enum(['payment','brief','revision_limit','rights','other']),description:z.string().trim().min(10).max(4000)}));
+    const dispute=await one<any>(`INSERT INTO campaign_disputes(campaign_id,opened_by,reason,description) VALUES($1,$2,$3,$4)
+      RETURNING id,campaign_id,opened_by,reason,description,state,created_at`,[p[1],user.user_id,data.reason,data.description]);
+    await audit(db,user.user_id,'campaign.dispute.opened','campaign_dispute',dispute!.id,{campaignId:p[1],reason:data.reason});
+    return reply(dispute,201);
+  }
   if(method==='POST' && p[0]==='submissions' && p[2]==='review') {
     await gate(user.user_id,'streamer');
     const data=await body(request,z.object({decision:z.enum(['approved','rejected']),reason:z.string().min(3).max(1000)}));
