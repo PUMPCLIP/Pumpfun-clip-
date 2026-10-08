@@ -511,3 +511,25 @@ html,body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystem
   .opus-note{line-height:1.45}
 }
 @media(max-width:420px){.mobile-conversion-proof small{font-size:9px}.mobile-conversion-proof{gap:5px}}
+
+
+/* Compact mobile scale: keep the demo informative without dominating the viewport. */
+@media(max-width:760px){
+  .opus-hero h1{font-size:clamp(42px,12vw,60px)!important;font-weight:720!important;line-height:.96!important}
+  .opus-hero-demo{width:min(100%,340px)!important;margin-inline:auto}
+  .opus-section-heading h2{font-size:clamp(36px,10vw,56px)!important;font-weight:720!important}
+  .opus-final h2{font-size:clamp(40px,11vw,60px)!important;font-weight:720!important}
+  .mobile-conversion-proof{gap:6px;margin-top:14px;padding-top:10px}
+  .mobile-conversion-proof b{font-size:8px;letter-spacing:.12em}
+  .mobile-conversion-proof strong{font-size:10px;font-weight:650}
+  .mobile-conversion-proof small{font-size:9px}
+  .demo-top small{font-size:8px!important;letter-spacing:.09em!important}
+  .demo-top b{font-size:9px!important}
+  .demo-timeline span{font-size:12px!important}
+  .live-video-copy strong{font-size:clamp(18px,5vw,26px)!important;font-weight:700!important}
+}
+@media(max-width:420px){
+  .opus-hero-demo{width:min(100%,320px)!important}
+  .mobile-conversion-proof strong{font-size:9px}
+  .mobile-conversion-proof small{font-size:8px}
+}
