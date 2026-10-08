@@ -34,10 +34,10 @@ function PreviewMedia({src}:{src:string}){
   const video=useRef<HTMLVideoElement>(null);
   const [failed,setFailed]=useState(false);
   const play=()=>{if(video.current&&!failed)video.current.play().catch(()=>undefined);};
-  const pause=()=>{if(video.current){video.current.pause();video.current.currentTime=0;}};
+  const pause=()=>{if(video.current){video.current.pause();video.current.currentTime=0;}}
   return <div className={'opus-clip-media '+(failed?'is-fallback':'')} onMouseEnter={play} onMouseLeave={pause} onFocus={play} onBlur={pause}>
-    <video ref={video} src={src||DEMO_VIDEO} muted loop playsInline preload="metadata" poster={DEMO_POSTER} onError={()=>setFailed(true)} aria-label="Clip preview video"/>
-    <img src={DEMO_POSTER} alt="Street footage preview" aria-hidden="true"/>
+    <video ref={video} src={src||DEMO_VIDEO} muted loop playsInline preload="none" poster={DEMO_POSTER} onError={()=>setFailed(true)} aria-label="Clip preview video"/>
+    <img src={DEMO_POSTER} alt="Street footage preview" aria-hidden="true" loading="lazy"/>
   </div>;
 }
 

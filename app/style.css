@@ -545,3 +545,14 @@ html,body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystem
 @media(max-width:420px){
   .opus-hero-demo{width:min(100%,280px)!important}
 }
+
+
+/* Mobile QA fixes: keep forms and public state cards inside their gutters, and give the demo timeline a real layout. */
+.opus-url-form,.opus-url-row,.opus-url-row input,.opus-url-row button,.feed-state,.people-state{box-sizing:border-box;min-width:0}
+.opus-url-form,.opus-url-row{max-width:100%}
+.demo-timeline{position:relative;z-index:5;display:grid;grid-template-columns:max-content repeat(6,minmax(0,1fr)) max-content;align-items:center;gap:clamp(4px,1vw,8px);min-width:0;margin:10px 4px 2px;color:var(--brand-muted);font-variant-numeric:tabular-nums}
+.demo-timeline span{display:block;font-size:11px;line-height:1;white-space:nowrap;color:var(--brand-muted)}
+.demo-timeline i{display:block;width:100%;min-width:0;height:3px;border-radius:99px;background:rgba(19,165,99,.22)}
+.demo-timeline i:nth-of-type(-n+2){background:var(--pump-accent,#13a563)}
+@media(max-width:760px){.opus-url-form,.opus-url-row{width:100%;max-width:100%}.demo-timeline{gap:clamp(3px,1vw,6px);margin-inline:2px}.demo-timeline span{font-size:10px!important}}
+@media(max-width:360px){.demo-timeline{gap:3px}.demo-timeline span{font-size:9px!important}}
