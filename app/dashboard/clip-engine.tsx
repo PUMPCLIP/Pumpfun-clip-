@@ -101,6 +101,21 @@ export default function ClipEngine() {
     finally { setPlanBusy(false); }
   };
 
+  useEffect(() => {
+    const requestedSource = new URLSearchParams(window.location.search).get('sourceUrl');
+    if (!requestedSource) return;
+    try {
+      const source = new URL(requestedSource);
+      const host = source.hostname.toLowerCase().replace(/^www\./, '');
+      const supported = ['youtube.com', 'youtu.be', 'tiktok.com', 'instagram.com', 'x.com', 'twitter.com', 'pump.fun'];
+      if (source.protocol !== 'https:' || !supported.some(domain => host === domain || host.endsWith(`.${domain}`))) return;
+      setSourceMode('link');
+      setSourceUrl(source.toString());
+    } catch {
+      // Ignore invalid or unsupported source query parameters.
+    }
+  }, []);
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError('');

@@ -29,6 +29,7 @@ export async function GET(request:Request){
         ORDER BY s.created_at DESC LIMIT 1
       ) work ON true
       WHERE u.roles && $1::text[]
+        AND u.public_handle IS NOT NULL AND btrim(u.public_handle) <> ''
       ORDER BY COALESCE(r.total_views,0) DESC,u.display_name ASC
       LIMIT $2`,[roles,limit]);
     return Response.json({items:rows.rows});
