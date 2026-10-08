@@ -15,7 +15,7 @@ export async function GET(){try{
     FROM ai_clip_requests WHERE user_id=$1 AND engine='native' ORDER BY created_at DESC LIMIT 12`,[user.user_id]);
   return Response.json({items:result.rows});
 }catch(error){return jsonError(error,crypto.randomUUID());}}
-const allowedDomains=['youtube.com','youtu.be','tiktok.com','instagram.com','x.com','twitter.com'];
+const allowedDomains=['youtube.com','youtu.be','tiktok.com','instagram.com','x.com','twitter.com','pump.fun'];
 function safeSourceUrl(value:string){
   try{
     const url=new URL(value),host=url.hostname.toLowerCase().replace(/\.$/,'');
@@ -40,23 +40,22 @@ export async function POST(request:Request){try{
     start:z.number().finite().min(0).transform(value=>Number(value.toFixed(3))).optional(),
     end:z.number().finite().positive().transform(value=>Number(value.toFixed(3))).optional(),
     caption:z.string().max(200).default(''),captionStyle:z.enum(['classic','bold','signal']).default('classic'),rightsConfirmed:z.boolean().default(false),
-  }).refine(value=>Boolean(value.sourceAssetId||value.campaignId)!==Boolean(value.sourceUrl),'Provide either a source asset or a supported social video URL.').refine(
+  }).refine(value=>Boolean(value.sourceAssetId||value.campaignId||value.sourceUrl),'Provide a source asset, campaign, or supported social video URL.').refine(
     value=>(value.start===undefined&&value.end===undefined)||(value.start!==undefined&&value.end!==undefined&&value.end>value.start&&value.end-value.start<=180),
     'Provide both start and end times for a clip no longer than 180 seconds.'
-  ).refine(value=>!value.sourceUrl||value.rightsConfirmed,'Confirm that you own or have permission to use this video URL.').refine(
-    value=>!value.sourceUrl||!value.campaignId,'Direct social URLs cannot be submitted to a campaign without its authorized source asset.'
-  ).safeParse(await request.json().catch(()=>null));
+  ).refine(value=>!value.sourceUrl||value.rightsConfirmed,'Confirm that you own or have permission to use this video URL.').safeParse(await request.json().catch(()=>null));
   if(!parsed.success)throw new ApiError('INVALID_INPUT',400,parsed.error.issues.map(issue=>issue.message).join('; '));
   const input=parsed.data;
-  if(input.sourceUrl&&!safeSourceUrl(input.sourceUrl))throw new ApiError('UNSUPPORTED_SOURCE_URL',422,'Use an HTTPS video page from YouTube, TikTok, Instagram, or X.');
-  if(input.campaignId&&input.sourceUrl)throw new ApiError('INVALID_INPUT',400,'Direct social URLs are processed outside campaign submissions.');
+  if(input.sourceUrl&&!safeSourceUrl(input.sourceUrl))throw new ApiError('UNSUPPORTED_SOURCE_URL',422,'Use an HTTPS video page from YouTube, TikTok, Instagram, X, or Pump.fun.');
 
   let sourceAssetId:string|null=input.sourceAssetId||null;
   if(input.campaignId){
-    const campaign=await one<any>(`SELECT c.source_asset_id FROM campaigns c JOIN campaign_memberships m ON m.campaign_id=c.id
+    const campaign=await one<any>(`SELECT c.source_asset_id,c.source_url FROM campaigns c JOIN campaign_memberships m ON m.campaign_id=c.id
       WHERE c.id=$1 AND c.state='live' AND m.clipper_id=$2`,[input.campaignId,user.user_id]);
-    if(!campaign?.source_asset_id)throw new ApiError('SOURCE_ACCESS_REQUIRED',403);
+    if(!campaign?.source_asset_id&&!campaign?.source_url)throw new ApiError('SOURCE_ACCESS_REQUIRED',403);
+    if(input.sourceUrl&&input.sourceUrl!==campaign.source_url)throw new ApiError('SOURCE_ACCESS_REQUIRED',403,'Use the authorized campaign source URL.');
     if(sourceAssetId&&sourceAssetId!==campaign.source_asset_id)throw new ApiError('SOURCE_ACCESS_REQUIRED',403,'The selected asset does not belong to this campaign.');
+    if(!sourceAssetId&&campaign.source_url)input.sourceUrl=campaign.source_url;
     sourceAssetId=campaign.source_asset_id;
   }
   if(sourceAssetId){

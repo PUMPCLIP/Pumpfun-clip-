@@ -91,8 +91,8 @@ async function handle(request:Request,path:string[],method:string):Promise<Respo
   }
   if(method==='POST' && p.join('/')==='campaigns') {
     await gate(user.user_id,'streamer');
-    const data=await body(request,z.object({title:z.string().min(5).max(120),description:z.string().max(5000).default('')}));
-    const c=await one<any>('INSERT INTO campaigns(streamer_id,title,description) VALUES($1,$2,$3) RETURNING *',[user.user_id,data.title,data.description]);
+    const data=await body(request,z.object({title:z.string().min(5).max(120),description:z.string().max(5000).default(''),category:z.string().max(80).default('General'),sourceUrl:z.string().url().max(2048).optional()}));
+    const c=await one<any>('INSERT INTO campaigns(streamer_id,title,description,category,source_url) VALUES($1,$2,$3,$4,$5) RETURNING *',[user.user_id,data.title,data.description,data.category,data.sourceUrl||null]);
     await db.query('INSERT INTO escrow_accounts(campaign_id) VALUES($1)',[c.id]);
     await audit(db,user.user_id,'campaign.created','campaign',c.id); return reply(c,201);
   }
@@ -103,7 +103,7 @@ async function handle(request:Request,path:string[],method:string):Promise<Respo
       licenseTerms:z.string().min(10).max(5000).optional(),sourceAssetId:uuid.optional(),
       targetPlatforms:z.array(z.enum(['tiktok','youtube','instagram','x'])).optional(),
       fixedRewardLamports:z.string().regex(/^[0-9]+$/).optional(),entryFeeRaw:z.string().regex(/^[0-9]+$/).optional(),
-      proofPolicy:z.enum(['manual','provider']).optional()}));
+      proofPolicy:z.enum(['manual','provider']).optional(),category:z.string().max(80).optional(),sourceUrl:z.string().url().max(2048).optional()}));
     if(data.sourceAssetId) {
       const asset=await one('SELECT id FROM media_assets WHERE id=$1 AND owner_id=$2 AND status=$3 AND rights_declared_at IS NOT NULL',[data.sourceAssetId,user.user_id,'verified']);
       if(!asset) throw new ApiError('SOURCE_RIGHTS_REQUIRED',422);
@@ -111,10 +111,10 @@ async function handle(request:Request,path:string[],method:string):Promise<Respo
     if(data.entryFeeRaw!==undefined && (raw(data.entryFeeRaw)<config.clipperFeeMin || raw(data.entryFeeRaw)>config.clipperFeeMax)) throw new ApiError('FEE_OUT_OF_RANGE',422);
     if(data.fixedRewardLamports!==undefined) raw(data.fixedRewardLamports);
     const updated=await one<any>(`UPDATE campaigns SET title=COALESCE($2,title),description=COALESCE($3,description),
-      license_terms=COALESCE($4,license_terms),source_asset_id=COALESCE($5,source_asset_id),
+      license_terms=COALESCE($4,license_terms),source_asset_id=COALESCE($5,source_asset_id),category=COALESCE($10,category),source_url=COALESCE($11,source_url),
       target_platforms=COALESCE($6,target_platforms),fixed_reward_lamports=COALESCE($7,fixed_reward_lamports),
       entry_fee_raw=COALESCE($8,entry_fee_raw),proof_policy=COALESCE($9,proof_policy),updated_at=now() WHERE id=$1 RETURNING *`,
-      [p[1],data.title,data.description,data.licenseTerms,data.sourceAssetId,data.targetPlatforms,data.fixedRewardLamports,data.entryFeeRaw,data.proofPolicy]);
+      [p[1],data.title,data.description,data.licenseTerms,data.sourceAssetId,data.targetPlatforms,data.fixedRewardLamports,data.entryFeeRaw,data.proofPolicy,data.category,data.sourceUrl]);
     await audit(db,user.user_id,'campaign.updated','campaign',p[1]); return reply(updated);
   }
   if(method==='POST' && p.join('/')==='fees/intents') {

@@ -8,6 +8,8 @@ async function main(){
     await run(process.execPath,['scripts/migrate.mjs']);
     if(process.env.PUMPCLIP_SEED_PUBLIC_DEMO==='true')
       await run(process.execPath,['scripts/seed-public-demo.mjs']);
+    if(process.env.PUMPCLIP_SEED_PUBLIC_NETWORK==='true')
+      await run(process.execPath,['scripts/seed-public-network.mjs']);
     start(process.execPath,['scripts/native-worker.mjs']);
     start(process.execPath,['scripts/channel-worker.mjs']);
     if(process.env.OPENAI_API_KEY) start(process.execPath,['scripts/ai-worker.mjs']);

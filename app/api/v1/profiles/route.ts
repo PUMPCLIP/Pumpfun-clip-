@@ -6,11 +6,12 @@ export const runtime='nodejs';
 export async function GET(request:Request){
   try{
     const params=new URL(request.url).searchParams;
-    const limit=Math.min(Math.max(Number(params.get('limit')||24),1),60);
+    const requested=Number(params.get('limit')||24);
+    const limit=Math.min(Math.max(Number.isFinite(requested)?requested:24,1),60);
     const role=params.get('role');
     const roles=role==='streamer'?['streamer']:role==='clipper'?['clipper']:['streamer','clipper'];
     const rows=await db.query(`
-      SELECT u.id,u.display_name,u.roles,
+      SELECT u.id,u.display_name,u.public_handle,u.social_links,u.roles,
         COALESCE(r.accepted_count,0) AS accepted_count,
         COALESCE(r.total_views,0) AS total_views,
         COALESCE(r.reputation_score,0) AS reputation_score,
