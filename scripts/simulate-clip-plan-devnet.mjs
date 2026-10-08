@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import {Connection,Keypair,PublicKey,SystemProgram,Transaction} from '@solana/web3.js';
-const DEVNET_GENESIS='GH7ome3EiwEr7tu9JuTh2dpYWBJK3z69Xm1ZE3MEE6JC';
+const DEVNET_GENESIS='EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG';
 const args=process.argv.slice(2),value=name=>{const i=args.indexOf(`--${name}`);return i<0?undefined:args[i+1];};
 const execute=args.includes('--execute');
 if(process.env.SOLANA_CLUSTER!=='devnet') throw new Error('Refusing to run outside Solana Devnet. Set SOLANA_CLUSTER=devnet.');

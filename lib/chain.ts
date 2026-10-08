@@ -4,7 +4,7 @@ import nacl from 'tweetnacl';
 import {config} from './config';
 import {ApiError} from './auth';
 const connection=()=>new Connection(config.rpc,'confirmed');
-export const DEVNET_GENESIS='GH7ome3EiwEr7tu9JuTh2dpYWBJK3z69Xm1ZE3MEE6JC';
+export const DEVNET_GENESIS='EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG';
 export async function assertDevnet(){
   if(config.cluster!=='devnet') throw new ApiError('DEVNET_REQUIRED',503);
   try {if(await connection().getGenesisHash()!==DEVNET_GENESIS) throw new ApiError('RPC_CLUSTER_MISMATCH',503);}
