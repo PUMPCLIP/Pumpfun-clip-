@@ -9,7 +9,7 @@ export async function session() {
   const token=(await cookies()).get('pc_session')?.value;
   if (!token) return null;
   return one<{id:string,user_id:string,email:string,display_name:string,roles:string[],is_admin:boolean,csrf_hash:string}>(
-    'SELECT s.id,s.user_id,u.email,u.display_name,u.roles,u.is_admin,s.csrf_hash FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>now()', [hash(token)]);
+    'SELECT s.id,s.user_id,u.email,u.display_name,u.roles,u.is_admin,s.csrf_hash FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>now() AND u.deleted_at IS NULL', [hash(token)]);
 }
 export async function requireUser() {const s=await session(); if(!s) throw new ApiError('SIGN_IN_REQUIRED',401); return s;}
 export async function mutation(request:Request) {

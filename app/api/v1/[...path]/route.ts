@@ -6,6 +6,7 @@ import {config,raw} from '@/lib/config';
 import {address,balance,verifyWalletSignature,verifyTokenTransfer,verifySolTransfer,assertDevnet} from '@/lib/chain';
 import {gate} from '@/lib/access';
 import {rateLimit} from '@/lib/rate-limit';
+import {removeMedia} from '@/lib/storage';
 export const runtime='nodejs';
 type Context={params:Promise<{path:string[]}>};
 const uuid=z.string().uuid();
@@ -34,7 +35,7 @@ async function handle(request:Request,path:string[],method:string):Promise<Respo
   const user=method==='GET'?await requireUser():await mutation(request);
   if(method==='GET' && p.join('/')==='me') {
     const wallet=await one<{address:string}>('SELECT address FROM wallets WHERE user_id=$1 ORDER BY is_primary DESC,updated_at DESC LIMIT 1',[user.user_id]);
-    const profile=await one<{public_handle:string|null}>('SELECT public_handle FROM users WHERE id=$1',[user.user_id]);
+    const profile=await one<{public_handle:string|null;social_links:Record<string,string>|null;avatar_key:string|null;avatar_updated_at:Date|null}>('SELECT public_handle,social_links,avatar_key,avatar_updated_at FROM users WHERE id=$1 AND deleted_at IS NULL',[user.user_id]);
     let access:{status:string,balanceRaw?:string,slot?:number}={status:wallet?'unconfigured':'wallet_required'};
     if(wallet && config.mint) {
       try {const b=await balance(wallet.address);
@@ -45,7 +46,7 @@ async function handle(request:Request,path:string[],method:string):Promise<Respo
       }
       catch {access={status:'rpc_unavailable'};}
     }
-    return reply({id:user.user_id,email:user.email,name:user.display_name,publicHandle:profile?.public_handle||null,roles:user.roles,wallet:wallet?.address,access,
+    return reply({id:user.user_id,email:user.email,name:user.display_name,publicHandle:profile?.public_handle||null,pumpfunUrl:profile?.social_links?.pumpfun||'',avatarUrl:profile?.avatar_key?`/api/v1/profiles/${user.user_id}/avatar?v=${encodeURIComponent(String(profile.avatar_updated_at||''))}`:null,roles:user.roles,wallet:wallet?.address,access,
       config:{network:config.cluster,mint:config.mint,decimals:config.decimals,streamerMinRaw:String(config.streamerMin),clipperMinRaw:String(config.clipperMin),
         streamerFeeRaw:String(config.streamerFee),tokenTreasury:config.tokenTreasury,solTreasury:config.solTreasury,moneyEnabled:config.moneyEnabled},
       csrf:(await cookies()).get('pc_csrf')?.value});
@@ -54,20 +55,52 @@ async function handle(request:Request,path:string[],method:string):Promise<Respo
     const data=await body(request,z.object({
       displayName:z.string().trim().min(1).max(100),
       publicHandle:z.string().trim().toLowerCase().min(3).max(24).regex(/^[a-z0-9][a-z0-9_-]*$/),
+      pumpfunUrl:z.string().trim().max(300).optional().or(z.literal('')),
     }));
-    const collision=await one<{id:string}>('SELECT id FROM users WHERE lower(public_handle)=lower($1) AND id<>$2 LIMIT 1',[data.publicHandle,user.user_id]);
+    const pumpfunUrl=data.pumpfunUrl||'';
+    if(pumpfunUrl){let parsed:URL;try{parsed=new URL(pumpfunUrl);}catch{throw new ApiError('INVALID_PUMPFUN_URL',422,'Use a public https://pump.fun profile URL.');}if(parsed.protocol!=='https:'||!['pump.fun','www.pump.fun'].includes(parsed.hostname)||parsed.username||parsed.password)throw new ApiError('INVALID_PUMPFUN_URL',422,'Use a public https://pump.fun profile URL.');}
+    const collision=await one<{id:string}>('SELECT id FROM users WHERE lower(public_handle)=lower($1) AND id<>$2 AND deleted_at IS NULL LIMIT 1',[data.publicHandle,user.user_id]);
     if(collision) throw new ApiError('HANDLE_TAKEN',409,'That public handle is already in use.');
     try {
-      const profile=await one<{display_name:string;public_handle:string}>(
-        'UPDATE users SET display_name=$2,display_name_customized=true,public_handle=$3,updated_at=now() WHERE id=$1 RETURNING display_name,public_handle',
-        [user.user_id,data.displayName,data.publicHandle],
+      const profile=await one<{display_name:string;public_handle:string;social_links:Record<string,string>}>(
+        `UPDATE users SET display_name=$2,display_name_customized=true,public_handle=$3,
+          social_links=CASE WHEN $4='' THEN social_links-'pumpfun' ELSE jsonb_set(COALESCE(social_links,'{}'::jsonb),'{pumpfun}',to_jsonb($4::text),true) END,updated_at=now()
+          WHERE id=$1 AND deleted_at IS NULL RETURNING display_name,public_handle,social_links`,
+        [user.user_id,data.displayName,data.publicHandle,pumpfunUrl],
       );
       if(!profile) throw new ApiError('NOT_FOUND',404);
-      return reply({name:profile.display_name,publicHandle:profile.public_handle});
+      return reply({name:profile.display_name,publicHandle:profile.public_handle,pumpfunUrl:profile.social_links?.pumpfun||''});
     } catch(error:any) {
       if(error?.code==='23505') throw new ApiError('HANDLE_TAKEN',409,'That public handle is already in use.');
       throw error;
     }
+  }
+  if(method==='DELETE' && p.join('/')==='me') {
+    const data=await body(request,z.object({confirmation:z.literal('DELETE')}));
+    void data;
+    const avatarKey=await tx(async client=>{
+      const account=await one<{avatar_key:string|null}>('SELECT avatar_key FROM users WHERE id=$1 AND deleted_at IS NULL FOR UPDATE',[user.user_id],client);
+      if(!account)throw new ApiError('NOT_FOUND',404);
+      await client.query('DELETE FROM profile_follows WHERE follower_id=$1 OR followed_id=$1',[user.user_id]);
+      await client.query('DELETE FROM sessions WHERE user_id=$1',[user.user_id]);
+      await client.query('DELETE FROM social_oauth_states WHERE user_id=$1',[user.user_id]);
+      await client.query('DELETE FROM social_connections WHERE user_id=$1',[user.user_id]);
+      await client.query('DELETE FROM social_posts WHERE user_id=$1',[user.user_id]);
+      await client.query('DELETE FROM tiktok_drafts WHERE user_id=$1',[user.user_id]);
+      await client.query('DELETE FROM youtube_uploads WHERE user_id=$1',[user.user_id]);
+      await client.query('DELETE FROM payout_destinations WHERE user_id=$1',[user.user_id]);
+      await client.query('DELETE FROM token_gate_checks WHERE user_id=$1',[user.user_id]);
+      await client.query('DELETE FROM wallet_challenges WHERE user_id=$1',[user.user_id]);
+      await client.query('DELETE FROM wallets WHERE user_id=$1',[user.user_id]);
+      await client.query(`UPDATE users SET email='deleted+'||id::text||'@deleted.invalid',google_sub=NULL,supabase_user_id=NULL,privy_user_id=NULL,
+        auth_provider='deleted',email_verified=false,display_name='Deleted user',display_name_customized=true,roles='{}',public_handle=NULL,
+        social_links='{}'::jsonb,avatar_key=NULL,avatar_updated_at=NULL,deleted_at=now(),updated_at=now() WHERE id=$1`,[user.user_id]);
+      await audit(client,user.user_id,'account.deleted','user',user.user_id,{profileIdentityRemoved:true,financialAndCampaignHistoryRetained:true});
+      return account.avatar_key;
+    });
+    if(avatarKey)await removeMedia(avatarKey).catch(error=>console.error('Deleted account avatar cleanup failed',error));
+    const cookieStore=await cookies();cookieStore.delete('pc_session');cookieStore.delete('pc_csrf');
+    return reply({ok:true,accountDeleted:true});
   }
   if(method==='POST' && p.join('/')==='auth/logout') {await revokeSession(); return reply({ok:true});}
   if(method==='POST' && p.join('/')==='me/roles') {
@@ -307,7 +340,7 @@ async function handle(request:Request,path:string[],method:string):Promise<Respo
     return reply(updated);
   }
   if(method==='GET' && p.join('/')==='me/rewards') {
-    const rows=await db.query('SELECT id,submission_id,campaign_id,lamports,state,available_at,signature,paid_at FROM reward_awards WHERE clipper_id=$1 ORDER BY created_at DESC',[user.user_id]);
+    const rows=await db.query('SELECT ra.id,ra.submission_id,ra.campaign_id,c.title AS campaign_title,ra.lamports,ra.state,ra.available_at,ra.signature,ra.paid_at FROM reward_awards ra JOIN campaigns c ON c.id=ra.campaign_id WHERE ra.clipper_id=$1 ORDER BY ra.created_at DESC',[user.user_id]);
     return reply(rows.rows);
   }
   if(method==='POST' && p[0]==='rewards' && p[2]==='dispute') {
@@ -332,3 +365,4 @@ async function dispatch(r:Request,c:Context,method:string) {
 export async function GET(r:Request,c:Context) {return dispatch(r,c,'GET');}
 export async function POST(r:Request,c:Context) {return dispatch(r,c,'POST');}
 export async function PATCH(r:Request,c:Context) {return dispatch(r,c,'PATCH');}
+export async function DELETE(request:Request,context:Context){return dispatch(request,context,'DELETE');}
