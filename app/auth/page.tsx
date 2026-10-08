@@ -212,7 +212,7 @@ export default function AuthPage() {
             <button className="auth-primary" type="button" onClick={signInWithGoogle} disabled={!!busy || configLoading || !supabase}>
               {busy === 'google' ? <><span className="auth-spinner" aria-hidden="true"/>Connecting…</> : busy === 'session' ? <><span className="auth-spinner" aria-hidden="true"/>Opening workspace…</> : <>Continue with Google <span>↗</span></>}
             </button>
-            <p className="auth-helper">Wallet sign-in is verified by Privy and PumpClip. Email and Google sign-in use secure Supabase sessions.</p>
+            <p className="auth-helper">{process.env.NEXT_PUBLIC_PRIVY_APP_ID ? 'Wallet sign-in is verified by Privy and PumpClip. ' : ''}Email/password and Google sign-in use secure Supabase sessions.</p>
           </div>
           <p className="auth-terms">By continuing, you agree to the pumpclips <a href="/">Terms</a> and <a href="/">Privacy</a>. No seed phrase is ever requested.</p>
         </div>
