@@ -6,8 +6,8 @@ import {creatorPortrait} from '@/lib/creator-images';
 type Clip={id:string;clipper_id:string;clipper_name:string;campaign_title:string;target_platforms:string[];video_url:string;view_count:number};
 type Person={id:string;display_name:string;roles:string[];accepted_count:number;total_views:number;reputation_score:number;earned_lamports?:number;campaign_count?:number;video_url?:string;campaign_title?:string};
 
-const DEMO_VIDEO='/street-walk-demo.mp4';
-const DEMO_POSTER='/street-walk-demo.jpg';
+const DEMO_VIDEO='/pumpclips-human-demo.mp4';
+const DEMO_POSTER='/pumpclips-human-demo.jpg';
 const platforms=[['▶','YouTube'],['♪','TikTok'],['◎','Instagram'],['𝕏','X']] as const;
 const mockClips=[
   {label:'THE CONTRARIAN TAKE',score:99},
