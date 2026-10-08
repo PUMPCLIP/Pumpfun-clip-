@@ -1,0 +1,24 @@
+import fs from 'node:fs';
+import {Connection,Keypair,PublicKey,SystemProgram,Transaction} from '@solana/web3.js';
+const DEVNET_GENESIS='GH7ome3EiwEr7tu9JuTh2dpYWBJK3z69Xm1ZE3MEE6JC';
+const args=process.argv.slice(2),value=name=>{const i=args.indexOf(`--${name}`);return i<0?undefined:args[i+1];};
+const execute=args.includes('--execute');
+if(process.env.SOLANA_CLUSTER!=='devnet') throw new Error('Refusing to run outside Solana Devnet. Set SOLANA_CLUSTER=devnet.');
+if(!process.env.SOL_TREASURY) throw new Error('SOL_TREASURY is required.');
+const keypairPath=value('keypair');
+if(!keypairPath) throw new Error('Usage: node scripts/simulate-clip-plan-devnet.mjs --keypair ./devnet-test-wallet.json [--execute]');
+const stat=fs.statSync(keypairPath);if((stat.mode&0o077)!==0) throw new Error('Keypair must have permissions 0600.');
+const signer=Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(keypairPath,'utf8'))));
+const treasury=new PublicKey(process.env.SOL_TREASURY);
+const rpc=process.env.SOLANA_RPC_URL||'https://api.devnet.solana.com';
+const connection=new Connection(rpc,'confirmed');
+if(await connection.getGenesisHash()!==DEVNET_GENESIS) throw new Error('RPC is not Solana Devnet.');
+const lamports=2_000_000_000;
+const tx=new Transaction().add(SystemProgram.transfer({fromPubkey:signer.publicKey,toPubkey:treasury,lamports}));
+const blockhash=await connection.getLatestBlockhash('confirmed');tx.feePayer=signer.publicKey;tx.recentBlockhash=blockhash.blockhash;
+if(!execute){console.log(JSON.stringify({mode:'dry-run',network:'devnet',from:signer.publicKey.toBase58(),to:treasury.toBase58(),lamports,sol:2,rpc,action:'No transaction broadcast. Re-run with --execute.'}));process.exit(0);}
+if(await connection.getBalance(signer.publicKey,'confirmed')<lamports+10000) throw new Error('Test wallet needs at least 2 SOL plus fees. Fund it with the Devnet faucet.');
+const signature=await connection.sendTransaction(tx, [signer], {skipPreflight:false,maxRetries:2});
+const confirmation=await connection.confirmTransaction({signature,blockhash:blockhash.blockhash,lastValidBlockHeight:blockhash.lastValidBlockHeight},'confirmed');
+if(confirmation.value.err) throw new Error(`Devnet transaction failed: ${JSON.stringify(confirmation.value.err)}`);
+console.log(JSON.stringify({mode:'executed',network:'devnet',signature,from:signer.publicKey.toBase58(),to:treasury.toBase58(),lamports,sol:2,explorer:`https://explorer.solana.com/tx/${signature}?cluster=devnet`,next:'Use this signature with the authenticated Pumpclip clip-plan intent verification flow.'}));
