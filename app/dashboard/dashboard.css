@@ -306,3 +306,14 @@
 .dispute-inline{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid var(--ws-line-soft)}
 .dispute-inline textarea{min-height:74px;width:100%;resize:vertical;border:1px solid var(--ws-line);border-radius:10px;background:var(--ws-input);color:var(--ws-ink);padding:10px;font:inherit;font-size:12px}
 @media(max-width:560px){.dispute-inline{grid-template-columns:minmax(0,1fr)}.dispute-inline .outline-action{width:100%}}
+
+/* Mobile workflow conversion: the first channel run should be a one-thumb action. */
+button,.primary-action,.outline-action,.queue-cta,.chat-composer button{touch-action:manipulation}
+@media(max-width:780px){
+  .channel-ingestion .panel-heading{align-items:flex-start;gap:10px}
+  .channel-ingestion .channel-copy{font-size:.9rem;line-height:1.55}
+  .channel-form input,.channel-form select,.channel-form button{min-height:50px;font-size:16px}
+  .channel-form button{width:100%;box-shadow:0 10px 24px rgba(16,185,129,.16)}
+  .channel-note{display:block;line-height:1.45;margin-top:12px}
+  .chat-composer{padding-bottom:calc(8px + env(safe-area-inset-bottom))}
+}
