@@ -80,14 +80,14 @@ export default function DiscoverPage(){
     </section>
 
     {showStreams&&<section className={styles.section} aria-labelledby="pumpfun-title">
-      <div className={styles.sectionHeading}><div><p className={styles.eyebrow}>LIVE MIRROR / PUMP.FUN</p><h2 id="pumpfun-title">Streams happening now.</h2><p>Pump.fun hosts the player; open the official stream or pass its source into your clip workspace.</p></div><span className={styles.livePill}><i/> LIVE CATALOG</span></div>
+      <div className={styles.sectionHeading}><div><p className={styles.eyebrow}>LIVE DIRECTORY / PUMP.FUN</p><h2 id="pumpfun-title">Streams happening now.</h2><p>Pump.fun blocks third-party embedded playback. Watch on its official player, or pass the source into your private clip workspace.</p></div><span className={styles.livePill}><i/> LIVE CATALOG</span></div>
       {streamLoading?<p className={styles.state} role="status">Refreshing live Pump.fun listings…</p>:streamError?<p className={styles.error} role="alert">{streamError}</p>:streams.length===0?<p className={styles.state}>No active Pump.fun streams detected right now.</p>:<div className={styles.streamGrid}>{streams.slice(0,24).map(item=><article className={styles.streamCard} key={item.mint}>
         <div className={styles.cardTop}><span className={styles.liveTag}><i/> LIVE</span><span className={styles.categoryTag}>PUMP.FUN LIVE</span></div>
         <h3>{item.title||`Pump.fun stream ${item.mint.slice(0,8)}`}</h3>
         <p className={styles.mint}>TOKEN / {item.mint.slice(0,10)}…{item.mint.slice(-5)}</p>
-        <div className={styles.cardActions}><a href={clipHref(item.url)}>Create a clip ↗</a><a href={item.url} target="_blank" rel="noreferrer">Open stream ↗</a></div>
+        <div className={styles.cardActions}><a href={clipHref(item.url)}>Create a clip ↗</a><a href={item.url} target="_blank" rel="noopener noreferrer" title="Opens the official Pump.fun player in a new tab">Watch on Pump.fun ↗</a></div>
       </article>)}</div>}
-      <p className={styles.sourceNote}>The official player remains hosted by Pump.fun. Clip jobs are private to your account and require sign-in, clipper access, and available credits.</p>
+      <p className={styles.sourceNote}>Playback remains on Pump.fun because its player does not permit third-party embedding. Clip jobs are private to your account and require sign-in, clipper access, and available credits.</p>
     </section>}
 
     {(category==='All'||category!=='Pump.fun Live')&&<section className={styles.section} aria-labelledby="campaign-title">
