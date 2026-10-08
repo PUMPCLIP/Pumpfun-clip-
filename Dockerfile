@@ -5,6 +5,7 @@ WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY package.json package-lock.json ./
 RUN npm ci --omit=peer --ignore-scripts
+RUN npm audit --omit=dev --omit=peer --audit-level=high
 
 FROM node:24-bookworm-slim AS builder
 WORKDIR /app
