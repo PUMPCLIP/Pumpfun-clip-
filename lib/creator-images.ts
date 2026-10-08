@@ -1,10 +1,10 @@
 const CREATOR_PORTRAITS = [
-  '/creators/creator-studio-01.jpeg',
-  '/creators/creator-studio-02.jpeg',
-  '/creators/creator-studio-03.jpeg',
-  '/creators/creator-studio-04.jpeg',
-  '/creators/creator-studio-05.jpeg',
-  '/creators/creator-studio-06.jpeg',
+  '/creators/creator-studio-01.webp',
+  '/creators/creator-studio-02.webp',
+  '/creators/creator-studio-03.webp',
+  '/creators/creator-studio-04.webp',
+  '/creators/creator-studio-05.webp',
+  '/creators/creator-studio-06.webp',
 ] as const;
 
 export function creatorPortrait(seed: string | undefined, index = 0) {

@@ -7,7 +7,7 @@ type Clip={id:string;clipper_id:string;clipper_name:string;campaign_title:string
 type Person={id:string;display_name:string;roles:string[];accepted_count:number;total_views:number;reputation_score:number;earned_lamports?:number;campaign_count?:number;video_url?:string;campaign_title?:string};
 
 const DEMO_VIDEO='/white-man-walk-demo.mp4';
-const DEMO_POSTER='/white-man-walk-demo.jpg';
+const DEMO_POSTER='/white-man-walk-demo.webp';
 const platforms=[['▶','YouTube'],['♪','TikTok'],['◎','Instagram'],['𝕏','X']] as const;
 const mockClips=[
   {label:'THE CONTRARIAN TAKE',score:99},
