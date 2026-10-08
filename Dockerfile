@@ -4,7 +4,7 @@ FROM node:24-bookworm-slim AS deps
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY package.json package-lock.json ./
-RUN npm ci --ignore-scripts
+RUN npm ci --omit=peer --ignore-scripts
 
 FROM node:24-bookworm-slim AS builder
 WORKDIR /app
