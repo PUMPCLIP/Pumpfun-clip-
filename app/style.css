@@ -533,3 +533,15 @@ html,body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystem
   .mobile-conversion-proof strong{font-size:9px}
   .mobile-conversion-proof small{font-size:8px}
 }
+
+
+/* Final narrow-phone scale: keep the vertical preview comfortably below the first fold. */
+@media(max-width:760px){
+  .opus-hero-demo{width:min(100%,300px)!important}
+  .opus-url-row button{background:#9ff5bb!important;color:#032015!important}
+  .demo-top small{color:#b9cbbf!important}
+  .demo-top b{color:#9ff5bb!important}
+}
+@media(max-width:420px){
+  .opus-hero-demo{width:min(100%,280px)!important}
+}
