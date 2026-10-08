@@ -1,9 +1,8 @@
 import {verifyIdentityToken} from '@privy-io/node';
-import {db,one} from '@/lib/db';
+import {one} from '@/lib/db';
 import {createSession,jsonError,ApiError} from '@/lib/auth';
 import {verifyPrivyToken} from '@/lib/privy';
 import {address} from '@/lib/chain';
-import {config} from '@/lib/config';
 
 export const runtime='nodejs';
 
@@ -29,9 +28,6 @@ export async function POST(request:Request) {
       ON CONFLICT(privy_user_id) DO UPDATE SET email=EXCLUDED.email,display_name=EXCLUDED.display_name,email_verified=EXCLUDED.email_verified,updated_at=now()
       RETURNING id`,[identity.userId,email,displayName,emailVerified]);
     if(!user) throw new Error('Privy user provisioning failed');
-    if(walletAddress) await db.query(`INSERT INTO wallets(user_id,address,network,provider,is_embedded,is_primary)
-      VALUES($1,$2,$3,'privy_embedded',true,NOT EXISTS(SELECT 1 FROM wallets WHERE user_id=$1))
-      ON CONFLICT(user_id,address) DO UPDATE SET updated_at=now(),provider='privy_embedded',is_embedded=true`,[user.id,walletAddress,config.cluster]);
     await createSession(user.id);
     return Response.json({ok:true,provider:'privy',userId:user.id,wallet:walletAddress||undefined});
   } catch(error) { return jsonError(error,crypto.randomUUID()); }

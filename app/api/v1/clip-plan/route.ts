@@ -12,7 +12,7 @@ export async function POST(request:Request){try{
   const key=request.headers.get('idempotency-key');
   if(!key||key.length>128)throw new ApiError('IDEMPOTENCY_KEY_REQUIRED');
   const payment=clipPlanPaymentConfig();
-  const wallet=await one<{address:string}>('SELECT address FROM wallets WHERE user_id=$1',[user.user_id]);
+  const wallet=await one<{address:string}>('SELECT address FROM wallets WHERE user_id=$1 ORDER BY is_primary DESC,updated_at DESC LIMIT 1',[user.user_id]);
   if(!wallet)throw new ApiError('WALLET_REQUIRED',403,'Connect your Solana wallet before starting the clip plan.');
   address(wallet.address);
   const row=await one<any>(`INSERT INTO clip_plan_intents(user_id,amount_lamports,destination,idempotency_key)

@@ -14,7 +14,7 @@ export function clipPlanPaymentConfig(){
 
 export async function clipPlanStatus(userId:string){
   await db.query('INSERT INTO ai_usage_accounts(user_id) VALUES($1) ON CONFLICT(user_id) DO NOTHING',[userId]);
-  const wallet=await one<{address:string}>('SELECT address FROM wallets WHERE user_id=$1',[userId]);
+  const wallet=await one<{address:string}>('SELECT address FROM wallets WHERE user_id=$1 ORDER BY is_primary DESC,updated_at DESC LIMIT 1',[userId]);
   const account=await one<any>('SELECT free_units FROM ai_usage_accounts WHERE user_id=$1',[userId]);
   const plan=await one<any>('SELECT status,plan_name,deposit_lamports,period_start,period_end,clips_used,deposit_signature FROM clip_plans WHERE user_id=$1',[userId]);
   const active=plan?.status==='active' && plan.period_end && new Date(plan.period_end).getTime()>Date.now();

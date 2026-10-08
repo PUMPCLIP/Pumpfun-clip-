@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import type { Session } from '@supabase/supabase-js';
+import PrivyWalletLogin from '../privy-wallet-login';
 
 type AuthNotice = { kind: 'success' | 'error' | 'info'; text: string } | null;
 
@@ -207,10 +208,11 @@ export default function AuthPage() {
           {notice && <p className={`auth-notice auth-notice-${notice.kind}`} role={notice.kind === 'error' ? 'alert' : 'status'} aria-live="polite">{notice.text}</p>}
           <div className="auth-divider"><span>or</span></div>
           <div className="auth-actions">
+            {process.env.NEXT_PUBLIC_PRIVY_APP_ID&&<PrivyWalletLogin/>}
             <button className="auth-primary" type="button" onClick={signInWithGoogle} disabled={!!busy || configLoading || !supabase}>
               {busy === 'google' ? <><span className="auth-spinner" aria-hidden="true"/>Connecting…</> : busy === 'session' ? <><span className="auth-spinner" aria-hidden="true"/>Opening workspace…</> : <>Continue with Google <span>↗</span></>}
             </button>
-            <p className="auth-helper">Secure sign-in powered by Supabase. Your account is protected with encrypted sessions.</p>
+            <p className="auth-helper">Wallet sign-in is verified by Privy and PumpClip. Email and Google sign-in use secure Supabase sessions.</p>
           </div>
           <p className="auth-terms">By continuing, you agree to the pumpclips <a href="/">Terms</a> and <a href="/">Privacy</a>. No seed phrase is ever requested.</p>
         </div>

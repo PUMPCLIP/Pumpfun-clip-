@@ -33,7 +33,7 @@ async function handle(request:Request,path:string[],method:string):Promise<Respo
   }
   const user=method==='GET'?await requireUser():await mutation(request);
   if(method==='GET' && p.join('/')==='me') {
-    const wallet=await one<{address:string}>('SELECT address FROM wallets WHERE user_id=$1',[user.user_id]);
+    const wallet=await one<{address:string}>('SELECT address FROM wallets WHERE user_id=$1 ORDER BY is_primary DESC,updated_at DESC LIMIT 1',[user.user_id]);
     let access:{status:string,balanceRaw?:string,slot?:number}={status:wallet?'unconfigured':'wallet_required'};
     if(wallet && config.mint) {
       try {const b=await balance(wallet.address);
@@ -70,7 +70,10 @@ async function handle(request:Request,path:string[],method:string):Promise<Respo
       await tx(async c=>{
         const used=await one<any>('UPDATE wallet_challenges SET used_at=now() WHERE id=$1 AND used_at IS NULL RETURNING id',[challenge.id],c);
         if(!used) throw new ApiError('CHALLENGE_USED',409);
-        await c.query('INSERT INTO wallets(user_id,address,network) VALUES($1,$2,$3)',[user.user_id,challenge.address,config.cluster]);
+        await c.query('UPDATE wallets SET is_primary=false,updated_at=now() WHERE user_id=$1 AND is_primary=true',[user.user_id]);
+        await c.query(`INSERT INTO wallets(user_id,address,network,provider,is_embedded,is_primary)
+          VALUES($1,$2,$3,'external',false,true)
+          ON CONFLICT(user_id,address) DO UPDATE SET network=EXCLUDED.network,is_primary=true,updated_at=now()`,[user.user_id,challenge.address,config.cluster]);
         await audit(c,user.user_id,'wallet.linked','wallet',used.id,{address:challenge.address});
       });
     } catch(e:any) {if(e.code==='23505') throw new ApiError('WALLET_ALREADY_LINKED',409); throw e;}
@@ -271,7 +274,7 @@ async function handle(request:Request,path:string[],method:string):Promise<Respo
         }
         const amount=BigInt(campaign.fixed_reward_lamports);
         if(amount<=0n) throw new ApiError('REWARD_NOT_CONFIGURED',409);
-        const recipient=await one<{address:string}>('SELECT address FROM wallets WHERE user_id=$1',[locked.clipper_id],client);
+        const recipient=await one<{address:string}>('SELECT address FROM wallets WHERE user_id=$1 ORDER BY is_primary DESC,updated_at DESC LIMIT 1',[locked.clipper_id],client);
         if(!recipient) throw new ApiError('CLIPPER_WALLET_REQUIRED',409);
         const reserved=await one('UPDATE escrow_accounts SET reserved_lamports=reserved_lamports+$2,updated_at=now() WHERE campaign_id=$1 AND funded_lamports-reserved_lamports-paid_lamports >= $2 RETURNING campaign_id',[locked.campaign_id,String(amount)],client);
         if(!reserved) throw new ApiError('INSUFFICIENT_ESCROW',409);
