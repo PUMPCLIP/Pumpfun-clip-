@@ -18,7 +18,7 @@ export async function GET(request:Request) {
     const {payload}=await jwtVerify(tokens.id_token,createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs')),{issuer:['https://accounts.google.com','accounts.google.com'],audience:process.env.GOOGLE_CLIENT_ID});
     if(payload.nonce!==nonce || !payload.sub || !payload.email || payload.email_verified!==true) throw new Error('Invalid Google identity');
     const user=await one<{id:string}>(
-      "INSERT INTO users(google_sub,email,display_name) VALUES($1,$2,$3) ON CONFLICT(google_sub) DO UPDATE SET email=EXCLUDED.email,display_name=EXCLUDED.display_name,updated_at=now() RETURNING id",
+      "INSERT INTO users(google_sub,email,display_name) VALUES($1,$2,$3) ON CONFLICT(google_sub) DO UPDATE SET email=EXCLUDED.email,display_name=CASE WHEN users.display_name_customized THEN users.display_name ELSE EXCLUDED.display_name END,updated_at=now() RETURNING id",
       [payload.sub,payload.email,String(payload.name || payload.email)]);
     if(!user) throw new Error('User creation failed');
     await createSession(user.id); return Response.redirect(appUrl+'/dashboard');

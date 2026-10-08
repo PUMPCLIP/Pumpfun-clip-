@@ -34,6 +34,7 @@ async function handle(request:Request,path:string[],method:string):Promise<Respo
   const user=method==='GET'?await requireUser():await mutation(request);
   if(method==='GET' && p.join('/')==='me') {
     const wallet=await one<{address:string}>('SELECT address FROM wallets WHERE user_id=$1 ORDER BY is_primary DESC,updated_at DESC LIMIT 1',[user.user_id]);
+    const profile=await one<{public_handle:string|null}>('SELECT public_handle FROM users WHERE id=$1',[user.user_id]);
     let access:{status:string,balanceRaw?:string,slot?:number}={status:wallet?'unconfigured':'wallet_required'};
     if(wallet && config.mint) {
       try {const b=await balance(wallet.address);
@@ -44,10 +45,29 @@ async function handle(request:Request,path:string[],method:string):Promise<Respo
       }
       catch {access={status:'rpc_unavailable'};}
     }
-    return reply({id:user.user_id,email:user.email,name:user.display_name,roles:user.roles,wallet:wallet?.address,access,
+    return reply({id:user.user_id,email:user.email,name:user.display_name,publicHandle:profile?.public_handle||null,roles:user.roles,wallet:wallet?.address,access,
       config:{network:config.cluster,mint:config.mint,decimals:config.decimals,streamerMinRaw:String(config.streamerMin),clipperMinRaw:String(config.clipperMin),
         streamerFeeRaw:String(config.streamerFee),tokenTreasury:config.tokenTreasury,solTreasury:config.solTreasury,moneyEnabled:config.moneyEnabled},
       csrf:(await cookies()).get('pc_csrf')?.value});
+  }
+  if(method==='PATCH' && p.join('/')==='me/profile') {
+    const data=await body(request,z.object({
+      displayName:z.string().trim().min(1).max(100),
+      publicHandle:z.string().trim().toLowerCase().min(3).max(24).regex(/^[a-z0-9][a-z0-9_-]*$/),
+    }));
+    const collision=await one<{id:string}>('SELECT id FROM users WHERE lower(public_handle)=lower($1) AND id<>$2 LIMIT 1',[data.publicHandle,user.user_id]);
+    if(collision) throw new ApiError('HANDLE_TAKEN',409,'That public handle is already in use.');
+    try {
+      const profile=await one<{display_name:string;public_handle:string}>(
+        'UPDATE users SET display_name=$2,display_name_customized=true,public_handle=$3,updated_at=now() WHERE id=$1 RETURNING display_name,public_handle',
+        [user.user_id,data.displayName,data.publicHandle],
+      );
+      if(!profile) throw new ApiError('NOT_FOUND',404);
+      return reply({name:profile.display_name,publicHandle:profile.public_handle});
+    } catch(error:any) {
+      if(error?.code==='23505') throw new ApiError('HANDLE_TAKEN',409,'That public handle is already in use.');
+      throw error;
+    }
   }
   if(method==='POST' && p.join('/')==='auth/logout') {await revokeSession(); return reply({ok:true});}
   if(method==='POST' && p.join('/')==='me/roles') {

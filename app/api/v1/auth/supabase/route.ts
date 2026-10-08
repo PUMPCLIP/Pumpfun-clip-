@@ -47,7 +47,7 @@ async function provisionUser(identity: SupabaseUser) {
     );
     if (linked) {
       await client.query(
-        "UPDATE users SET email=$2,display_name=$3,auth_provider='supabase',email_verified=true,updated_at=now() WHERE id=$1",
+        "UPDATE users SET email=$2,display_name=CASE WHEN users.display_name_customized THEN users.display_name ELSE $3 END,auth_provider='supabase',email_verified=true,updated_at=now() WHERE id=$1",
         [linked.id, email, displayName],
       );
       return linked.id;
@@ -62,7 +62,7 @@ async function provisionUser(identity: SupabaseUser) {
         throw new ApiError('IDENTITY_LINK_CONFLICT', 409, 'This email is already linked to a different Supabase account.');
       }
       await client.query(
-        "UPDATE users SET supabase_user_id=$2,email=$3,display_name=$4,auth_provider='supabase',email_verified=true,updated_at=now() WHERE id=$1",
+        "UPDATE users SET supabase_user_id=$2,email=$3,display_name=CASE WHEN users.display_name_customized THEN users.display_name ELSE $4 END,auth_provider='supabase',email_verified=true,updated_at=now() WHERE id=$1",
         [byEmail.id, supabaseId, email, displayName],
       );
       return byEmail.id;

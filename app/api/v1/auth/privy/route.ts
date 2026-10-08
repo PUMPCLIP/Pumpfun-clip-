@@ -25,7 +25,7 @@ export async function POST(request:Request) {
     if(walletAddress) address(walletAddress);
     const user=await one<{id:string}>(`INSERT INTO users(privy_user_id,google_sub,email,display_name,auth_provider,email_verified)
       VALUES($1,NULL,$2,$3,'privy',$4)
-      ON CONFLICT(privy_user_id) DO UPDATE SET email=EXCLUDED.email,display_name=EXCLUDED.display_name,email_verified=EXCLUDED.email_verified,updated_at=now()
+      ON CONFLICT(privy_user_id) DO UPDATE SET email=EXCLUDED.email,display_name=CASE WHEN users.display_name_customized THEN users.display_name ELSE EXCLUDED.display_name END,email_verified=EXCLUDED.email_verified,updated_at=now()
       RETURNING id`,[identity.userId,email,displayName,emailVerified]);
     if(!user) throw new Error('Privy user provisioning failed');
     await createSession(user.id);
