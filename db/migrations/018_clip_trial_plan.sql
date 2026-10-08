@@ -1,4 +1,4 @@
--- Two-clip trial and verified 2 SOL monthly clip plan.
+-- Two-clip trial and verified 2 SOL annual clip plan with renewable credits.
 CREATE TABLE IF NOT EXISTS clip_plan_intents (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -16,7 +16,7 @@ CREATE INDEX IF NOT EXISTS clip_plan_intents_user ON clip_plan_intents(user_id,c
 CREATE TABLE IF NOT EXISTS clip_plans (
   user_id uuid PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   status text NOT NULL DEFAULT 'inactive' CHECK (status IN ('inactive','active','expired')),
-  plan_name text NOT NULL DEFAULT 'monthly_20',
+  plan_name text NOT NULL DEFAULT 'annual_20',
   deposit_lamports bigint NOT NULL CHECK (deposit_lamports > 0),
   deposit_signature text UNIQUE,
   treasury text NOT NULL,
