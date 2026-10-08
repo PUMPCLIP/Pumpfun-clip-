@@ -50,6 +50,7 @@ export default function ClipEngine() {
   const [plan, setPlan] = useState<ClipPlan | null>(null);
   const [planBusy, setPlanBusy] = useState(false);
   const [showPlan, setShowPlan] = useState(false);
+  const [paymentIntent, setPaymentIntent] = useState<{id:string;amountLamports:string;amountSol:string;destination:string;network:string;wallet:string}|null>(null);
 
   const refreshJobs = useCallback(async () => {
     try {
@@ -82,21 +83,32 @@ export default function ClipEngine() {
     return () => window.clearInterval(timer);
   }, [refreshJobs, refreshPlan]);
 
-  const startPlan = async () => {
+  const preparePlan = async () => {
     setPlanBusy(true); setError('');
     try {
-      const intent = await readResponse<{id:string;amountLamports:string;destination:string;wallet:string}>(await fetch('/api/v1/clip-plan', {
+      const intent = await readResponse<{id:string;amountLamports:string;amountSol:string;destination:string;network:string;wallet:string}>(await fetch('/api/v1/clip-plan', {
         method: 'POST', headers: {'content-type':'application/json','x-csrf-token':csrf(),'idempotency-key':crypto.randomUUID()}, body: '{}',
       }));
-      const provider = walletFor(intent.wallet);
+      setPaymentIntent(intent);
+      setShowPlan(true);
+      setNotice('Verify the recipient and network below before opening your wallet.');
+    } catch (caught) { setError(caught instanceof Error ? caught.message : 'Could not prepare the clip plan payment.'); }
+    finally { setPlanBusy(false); }
+  };
+
+  const payPlan = async () => {
+    if(!paymentIntent)return;
+    setPlanBusy(true); setError('');
+    try {
+      const provider = walletFor(paymentIntent.wallet);
       const connected = await provider.connect();
-      if (connected.publicKey.toBase58() !== intent.wallet) throw new Error('Connect the Solana wallet linked to your Pumpclip account.');
-      const transaction = new Transaction().add(SystemProgram.transfer({fromPubkey:connected.publicKey,toPubkey:new PublicKey(intent.destination),lamports:Number(intent.amountLamports)}));
+      if (connected.publicKey.toBase58() !== paymentIntent.wallet) throw new Error('Connect the Solana wallet linked to your Pumpclip account.');
+      const transaction = new Transaction().add(SystemProgram.transfer({fromPubkey:connected.publicKey,toPubkey:new PublicKey(paymentIntent.destination),lamports:Number(paymentIntent.amountLamports)}));
       const sent = await provider.signAndSendTransaction(transaction);
-      await readResponse(await fetch(`/api/v1/clip-plan/intents/${intent.id}/verify`, {
+      await readResponse(await fetch(`/api/v1/clip-plan/intents/${paymentIntent.id}/verify`, {
         method:'POST', headers:{'content-type':'application/json','x-csrf-token':csrf()}, body:JSON.stringify({signature:sent.signature}),
       }));
-      setShowPlan(false); setNotice('Payment verified. Your 20-clip monthly plan is active.'); await refreshPlan();
+      setPaymentIntent(null); setShowPlan(false); setNotice('Payment verified. Your 20-clip monthly plan is active.'); await refreshPlan();
     } catch (caught) { setError(caught instanceof Error ? caught.message : 'The clip plan payment could not be completed.'); }
     finally { setPlanBusy(false); }
   };
@@ -202,7 +214,7 @@ export default function ClipEngine() {
     {authRequired && <div className="clip-engine-signin" role="status"><strong>Sign in to use the clip engine.</strong><span>Your private uploads, render jobs, and results are tied to your account.</span><a href="/auth">Sign in or create an account ↗</a></div>}
     {error && <p className="clip-engine-error" role="alert">{error}</p>}
     {notice && <p className="clip-engine-notice" role="status" aria-live="polite">{notice}</p>}
-    {!authRequired && plan && <div className="clip-engine-plan panel" role="status"><div><span className="kicker">CLIP ACCESS</span><strong>{plan.plan ? `${plan.plan.remaining} of ${plan.plan.monthlyClips} monthly clips remaining` : `${plan.trial.remaining} of ${plan.trial.total} free clips remaining`}</strong><small>{plan.plan ? `Renews ${new Date(plan.plan.periodEnd).toLocaleDateString()}.` : 'Your first two clips are free.'}</small></div>{(!plan.plan && (showPlan || plan.trial.remaining === 0)) && <button className="primary-action" type="button" onClick={() => void startPlan()} disabled={planBusy || !plan.payment}>{planBusy ? 'Waiting for wallet…' : 'Unlock 20 clips · 2 SOL'}</button>}{plan.plan && <span className="clip-engine-plan-badge">MONTHLY PLAN</span>}</div>}
+    {!authRequired && plan && <><div className="clip-engine-plan panel" role="status"><div><span className="kicker">CLIP ACCESS</span><strong>{plan.plan ? `${plan.plan.remaining} of ${plan.plan.monthlyClips} monthly clips remaining` : `${plan.trial.remaining} of ${plan.trial.total} free clips remaining`}</strong><small>{plan.plan ? `Renews ${new Date(plan.plan.periodEnd).toLocaleDateString()}.` : plan.trial.remaining <= 1 ? 'You are running low. Upgrade before your free clips run out.' : 'Your first two clips are free.'}</small></div>{(!plan.plan && (showPlan || plan.trial.remaining <= 1)) && <button className="primary-action" type="button" onClick={() => void preparePlan()} disabled={planBusy || !plan.payment}>{planBusy ? 'Preparing upgrade…' : 'Upgrade · 20 clips · 2 SOL'}</button>}{plan.plan && <span className="clip-engine-plan-badge">MONTHLY PLAN</span>}</div>{paymentIntent&&<div className="clip-engine-payment panel" role="dialog" aria-labelledby="payment-title"><div><span className="kicker">SOLANA PAYMENT / VERIFY BEFORE APPROVAL</span><h2 id="payment-title">Unlock your monthly clip plan</h2><p>Review every detail below. PumpClip will only activate the plan after the confirmed on-chain transfer.</p></div><dl><div><dt>Amount</dt><dd>{paymentIntent.amountSol} SOL</dd></div><div><dt>Network</dt><dd>{paymentIntent.network}</dd></div><div><dt>Recipient</dt><dd><code>{paymentIntent.destination}</code></dd></div><div><dt>Wallet</dt><dd><code>{paymentIntent.wallet}</code></dd></div></dl><p className="clip-engine-payment-warning">This is an on-chain transfer and cannot be reversed. Verify the recipient, amount, network, and wallet fee in Phantom or Solflare before approving.</p><div className="clip-engine-payment-actions"><button className="primary-action" type="button" onClick={() => void payPlan()} disabled={planBusy}>{planBusy ? 'Waiting for wallet approval…' : 'Open wallet to approve 2 SOL'}</button><button className="text-button" type="button" onClick={() => {setPaymentIntent(null);setShowPlan(false);}}>Cancel</button></div></div>}</>}
 
     {!authRequired && <div className="clip-engine-layout">
       <form className="clip-engine-form panel" onSubmit={submit}>
