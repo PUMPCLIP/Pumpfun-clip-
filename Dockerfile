@@ -8,6 +8,8 @@ RUN npm ci --omit=peer --ignore-scripts
 RUN npm audit --omit=dev --omit=peer --audit-level=high
 
 FROM node:24-bookworm-slim AS builder
+# NEXT_PUBLIC values are inlined by Next.js during build; this wallet address is public by design.
+ARG NEXT_PUBLIC_SOLANA_WALLET_ADDRESS
 WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \

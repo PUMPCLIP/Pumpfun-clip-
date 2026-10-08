@@ -2,6 +2,7 @@
 
 import {useEffect,useMemo,useState} from 'react';
 import styles from './discover.module.css';
+import SolTipModal from './sol-tip-modal';
 
 type Campaign={id:string;title:string;description?:string|null;category?:string|null;state:string;source_url?:string|null;target_platforms?:string[];streamer_name?:string};
 type LiveItem={mint:string;title:string;url:string;status:string};
@@ -21,6 +22,7 @@ export default function DiscoverPage(){
   const [campaignError,setCampaignError]=useState('');
   const [streamError,setStreamError]=useState('');
   const [category,setCategory]=useState('All');
+  const [tipOpen,setTipOpen]=useState(false);
 
   useEffect(()=>{
     const controller=new AbortController();
@@ -61,7 +63,7 @@ export default function DiscoverPage(){
         <p className={styles.eyebrow}>LIVE DISCOVERY / PUMP.FUN + CREATOR CAMPAIGNS</p>
         <h1>Find the next<br/><em>moment.</em></h1>
         <p>Browse live Pump.fun streams and active creator briefs. When you find a source worth clipping, send it into your private video workspace.</p>
-        <div className={styles.heroActions}><a className={styles.primary} href={clipHref()}>Open Clip Engine ↗</a><a className={styles.secondary} href="/people">Browse creators</a></div>
+        <div className={styles.heroActions}><a className={styles.primary} href={clipHref()}>Open Clip Engine ↗</a><a className={styles.secondary} href="/people">Browse creators</a><button className={styles.secondary} type="button" onClick={()=>setTipOpen(true)}>Send SOL / Tip Creator</button></div>
       </div>
       <aside className={styles.heroStats} aria-label="Current discovery inventory">
         <div><strong>{streamLoading?'—':streams.length}</strong><span>LIVE PUMP.FUN LISTINGS</span></div>
@@ -100,5 +102,6 @@ export default function DiscoverPage(){
 
     <section className={styles.bottomCta}><div><p className={styles.eyebrow}>FROM DISCOVERY TO DELIVERY</p><h2>Turn a source into a cut.</h2><p>Sign in with email or Google, then queue a private clipping job and follow its render status in the Clip Engine.</p></div><a className={styles.primary} href={clipHref()}>Start clipping ↗</a></section>
     <footer className={styles.footer}><a className={styles.brand} href="/"><img src="/logo.svg" alt=""/><span>pumpclips</span></a><span>Live listings from Pump.fun · campaign data from PumpClip</span><a href="/people">Creator directory ↗</a></footer>
+    {tipOpen&&<SolTipModal onClose={()=>setTipOpen(false)}/>}
   </main>;
 }

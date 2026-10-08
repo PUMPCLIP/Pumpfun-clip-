@@ -2,3 +2,5 @@
 @media(max-width:900px){.hero{grid-template-columns:1fr;gap:28px}.heroStats{grid-template-columns:1fr 1fr}.heroStats div:nth-child(2){border-left:1px solid var(--brand-line)}.heroStats p{grid-column:1/-1}.filters{grid-template-columns:1fr}.chips{justify-content:flex-start}.streamGrid,.campaignGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.header{height:66px;padding-inline:18px}.header nav{gap:12px}.header nav a{font-size:8px;letter-spacing:.08em}.header nav .signIn{padding:9px}.hero{padding:68px 18px 38px}.hero h1{font-size:clamp(54px,16vw,82px)}.heroCopy>p:not(.eyebrow){font-size:14px}.filters,.section{padding-inline:18px}.section{padding-block:40px}.sectionHeading{align-items:flex-start;flex-direction:column}.streamGrid,.campaignGrid{grid-template-columns:1fr}.bottomCta{align-items:flex-start;flex-direction:column;padding:36px 18px}.footer{align-items:flex-start;flex-direction:column;padding-inline:18px}.footer>span{text-align:left}}
 @media(prefers-reduced-motion:reduce){.streamCard,.campaignCard{transition:none}.streamCard:hover,.campaignCard:hover{transform:none}}
+
+.heroActions button{font-family:inherit;cursor:pointer}
