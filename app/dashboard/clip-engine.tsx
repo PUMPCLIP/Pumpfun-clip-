@@ -94,6 +94,22 @@ export default function ClipEngine() {
     finally { setPlanBusy(false); }
   };
 
+  const verifyPaymentWithRetry = async (intentId:string, signature:string) => {
+    const delays = [1500, 2500, 4000, 6000, 8000, 10000];
+    for (let attempt = 0; attempt <= delays.length; attempt += 1) {
+      try {
+        return await readResponse(await fetch(`/api/v1/clip-plan/intents/${intentId}/verify`, {
+          method:'POST', headers:{'content-type':'application/json','x-csrf-token':csrf()}, body:JSON.stringify({signature}),
+        }));
+      } catch (caught) {
+        if ((caught as {code?:string})?.code !== 'CHAIN_VERIFICATION_PENDING' || attempt === delays.length) throw caught;
+        setNotice(`Payment submitted. Waiting for Solana confirmation… retry ${attempt + 1}/${delays.length}`);
+        await new Promise(resolve => window.setTimeout(resolve, delays[attempt]));
+      }
+    }
+    throw new Error('The payment confirmation could not be completed.');
+  };
+
   const payPlan = async () => {
     if(!paymentIntent)return;
     setPlanBusy(true); setError('');
@@ -103,9 +119,7 @@ export default function ClipEngine() {
       if (connected.publicKey.toBase58() !== paymentIntent.wallet) throw new Error('Connect the Solana wallet linked to your Pumpclip account.');
       const transaction = new Transaction().add(SystemProgram.transfer({fromPubkey:connected.publicKey,toPubkey:new PublicKey(paymentIntent.destination),lamports:Number(paymentIntent.amountLamports)}));
       const sent = await provider.signAndSendTransaction(transaction);
-      await readResponse(await fetch(`/api/v1/clip-plan/intents/${paymentIntent.id}/verify`, {
-        method:'POST', headers:{'content-type':'application/json','x-csrf-token':csrf()}, body:JSON.stringify({signature:sent.signature}),
-      }));
+      await verifyPaymentWithRetry(paymentIntent.id, sent.signature);
       setPaymentIntent(null); setNotice('Payment verified. Your 20-clip annual plan is active.'); await refreshPlan();
     } catch (caught) { setError(caught instanceof Error ? caught.message : 'The clip plan payment could not be completed.'); }
     finally { setPlanBusy(false); }

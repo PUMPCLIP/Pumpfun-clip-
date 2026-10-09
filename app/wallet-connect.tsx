@@ -6,6 +6,7 @@ import {availableWallets,WalletProvider} from '@/lib/browser-wallet';
 type Props={
   currentWallet?:string;
   network?:string;
+  treasuryAddress?:string;
   csrf:string;
   onLinked:(address:string)=>void;
 };
@@ -19,7 +20,7 @@ async function requestJson<T extends ApiData>(path:string,init:RequestInit={}):P
 }
 const shortAddress=(value:string)=>value.length>18?`${value.slice(0,8)}…${value.slice(-8)}`:value;
 
-export default function WalletConnect({currentWallet,network='devnet',csrf,onLinked}:Props){
+export default function WalletConnect({currentWallet,network='devnet',treasuryAddress='',csrf,onLinked}:Props){
   const [wallets,setWallets]=useState<{name:string;provider:WalletProvider}[]>([]);
   const [selected,setSelected]=useState('');
   const [busy,setBusy]=useState(false);
@@ -62,6 +63,7 @@ export default function WalletConnect({currentWallet,network='devnet',csrf,onLin
   return <div className="settings-wallet-connect">
     <div className="settings-wallet-connect-head"><div><p className="settings-eyebrow">WALLET CONNECTION</p><h3>{currentWallet?'Wallet linked':'Connect a Solana wallet'}</h3></div><span className="settings-network-badge">{network}</span></div>
     {currentWallet?<div className="settings-wallet-address"><span>Linked address</span><code>{currentWallet}</code></div>:<p className="settings-wallet-copy">Link Phantom, Solflare, Backpack, or another injected Solana wallet. You will approve a signed message only; this step never transfers funds.</p>}
+    <div className="settings-treasury"><div><span>Upgrade deposit address</span><small>Send only the displayed amount on the displayed network after reviewing the payment modal.</small></div><code>{treasuryAddress||'Treasury not configured'}</code><strong>{network}</strong></div>
     {wallets.length>1&&<div className="settings-wallet-choices" role="group" aria-label="Choose wallet">{wallets.map(item=>{const address=item.provider.publicKey?.toBase58()||'';return <button key={item.name+address} type="button" className={selected===address?'selected':''} onClick={()=>setSelected(address)}>{item.name}{address&&<small>{shortAddress(address)}</small>}</button>;})}</div>}
     <div className="settings-wallet-actions"><button className="settings-primary" type="button" onClick={()=>void connectAndVerify()} disabled={busy}>{busy?'Waiting for wallet…':currentWallet?'Link another wallet':'Connect wallet'}</button>{wallets.length===0&&<><a className="settings-secondary" href="https://phantom.app/download" target="_blank" rel="noreferrer">Get Phantom ↗</a><button className="settings-secondary" type="button" onClick={refresh}>Refresh wallets</button></>}</div>
     {notice&&<p className="settings-wallet-notice" role="status" aria-live="polite">{notice}</p>}
