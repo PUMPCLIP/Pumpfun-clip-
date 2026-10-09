@@ -13,7 +13,7 @@ export async function reserveAiUnits(userId:string,action:AiAction,key:string,me
     await c.query('INSERT INTO ai_usage_accounts(user_id) VALUES($1) ON CONFLICT(user_id) DO NOTHING',[userId]);
     const account=await one<any>('SELECT * FROM ai_usage_accounts WHERE user_id=$1 FOR UPDATE',[userId],c);
     const available=Number(account.free_units)+Number(account.balance_units);
-    if(!planClip && available<units) throw new ApiError(action==='native_clip'?'CLIP_TRIAL_EXHAUSTED':'AI_CREDITS_REQUIRED',402,action==='native_clip'?'Your two free clips are used. Deposit 2 SOL to unlock 20 clips for the next month.':'Not enough AI credits. Add credits or wait for your free tier to renew.');
+    if(!planClip && available<units) throw new ApiError(action==='native_clip'?'CLIP_TRIAL_EXHAUSTED':'AI_CREDITS_REQUIRED',402,action==='native_clip'?'Your two free clips are used. Deposit 2 SOL to unlock 20 annual clip credits.':'Not enough AI credits. Add credits or wait for your free tier to renew.');
     const free=planClip?0:Math.min(Number(account.free_units),units),paid=planClip?0:units-free;
     if(!planClip) await c.query('UPDATE ai_usage_accounts SET free_units=free_units-$2,balance_units=balance_units-$3,updated_at=now() WHERE user_id=$1',[userId,free,paid]);
     return one<any>('INSERT INTO ai_usage_ledger(user_id,action,units,status,idempotency_key,metadata) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',[userId,action,units,'reserved',key,JSON.stringify({...metadata,freeUnits:free,paidUnits:paid,planClip})],c);
