@@ -33,6 +33,15 @@ export async function GET(request:Request){
           coalesce(sum(deposit_lamports) FILTER (WHERE status='active' AND period_end>now()),0)::text AS active_deposit_lamports
         FROM clip_plans
       ),
+      verification_stats AS (
+        SELECT
+          count(*) FILTER (WHERE action='clip_plan.verification_attempt' AND created_at >= now()-interval '30 days')::int AS attempts_30d,
+          count(*) FILTER (WHERE action='clip_plan.verification_pending' AND created_at >= now()-interval '30 days')::int AS pending_retries_30d,
+          count(*) FILTER (WHERE action='clip_plan.verification_failed' AND created_at >= now()-interval '30 days')::int AS failures_30d,
+          max(created_at) FILTER (WHERE action='clip_plan.verification_failed') AS last_failure_at
+        FROM audit_events
+        WHERE action IN ('clip_plan.verification_attempt','clip_plan.verification_pending','clip_plan.verification_failed')
+      ),
       daily AS (
         SELECT day::date AS day,
           coalesce((SELECT count(*) FROM ai_usage_ledger l WHERE l.action='native_clip' AND l.created_at::date=day::date AND coalesce((l.metadata->>'planClip')::boolean,false)=false),0)::int AS free_clip_jobs,
@@ -44,10 +53,11 @@ export async function GET(request:Request){
         'trial',row_to_json(account_stats),
         'intents',row_to_json(intent_stats),
         'plans',row_to_json(plan_stats),
+        'verification',row_to_json(verification_stats),
         'conversionRate',case when account_stats.trials_exhausted=0 then 0 else round(intent_stats.conversions_total::numeric/account_stats.trials_exhausted*100,2) end,
         'daily',(SELECT coalesce(json_agg(daily ORDER BY day),'[]'::json) FROM daily)
       ) AS analytics
-      FROM account_stats,intent_stats,plan_stats`,[]);
+      FROM account_stats,intent_stats,plan_stats,verification_stats`,[]);
     return Response.json(result.rows[0]?.analytics||{});
   }catch(error){return jsonError(error,crypto.randomUUID());}
 }
