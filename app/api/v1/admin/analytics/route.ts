@@ -29,7 +29,7 @@ export async function GET(request:Request){
         SELECT
           count(*) FILTER (WHERE status='active' AND period_end>now())::int AS active_paid_plans,
           count(*) FILTER (WHERE status='active' AND period_end>now() AND period_end<=now()+interval '7 days')::int AS expiring_7d,
-          coalesce(sum(clips_used) FILTER (WHERE status='active' AND period_end>now()),0)::int AS paid_clips_used,
+          coalesce(sum(credits_used_units) FILTER (WHERE status='active' AND period_end>now()),0)::int AS paid_credits_used,
           coalesce(sum(deposit_lamports) FILTER (WHERE status='active' AND period_end>now()),0)::text AS active_deposit_lamports
         FROM clip_plans
       ),
@@ -44,7 +44,7 @@ export async function GET(request:Request){
       ),
       daily AS (
         SELECT day::date AS day,
-          coalesce((SELECT count(*) FROM ai_usage_ledger l WHERE l.action='native_clip' AND l.created_at::date=day::date AND coalesce((l.metadata->>'planClip')::boolean,false)=false),0)::int AS free_clip_jobs,
+          coalesce((SELECT count(*) FROM ai_usage_ledger l WHERE l.action='native_clip' AND l.created_at::date=day::date AND coalesce((l.metadata->>'planCredits')::boolean,false)=false),0)::int AS free_clip_jobs,
           coalesce((SELECT count(*) FROM clip_plan_intents i WHERE i.state='verified' AND i.created_at::date=day::date),0)::int AS conversions
         FROM generate_series(current_date-interval '13 days',current_date,interval '1 day') day
       )
