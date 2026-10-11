@@ -39,6 +39,10 @@ Provider-specific signatures should be adapted at the edge to send the configure
 
 Do not put provider API keys or webhook secrets in the repository. Helius/QuickNode webhook creation still requires an owner-authorized provider account and a target wallet list.
 
-## Trading safety boundary
+## Trading flow and safety boundary
 
-This pipeline is **alert-only**. It does not call Jupiter, pump.fun SDKs, or `signAndSendTransaction`. Mainnet swaps require a separate reviewed transaction flow with an explicit user confirmation, quote/slippage limits, wallet signature, replay protection, and an operator kill switch. Never enable automatic trading by setting an environment variable alone.
+Token alerts now expose a Quick Buy modal when `TRADING_ENABLED=true`. The modal requires a linked primary wallet, fetches a quote, shows the selected route and slippage, then requests an unsigned v0 transaction from the server. Un-graduated SOL-quoted curves are priced and built with the official `@pump-fun/pump-sdk`; graduated tokens are routed through Jupiter Swap V2's `/swap/v2/build` endpoint, which can select Raydium and other supported liquidity venues.
+
+The server never receives a private key and never signs a trade. The browser passes the unsigned versioned transaction to Phantom, Solflare, or another injected provider. Providers that expose only `signTransaction` return the signed bytes to `POST /api/v1/trade/submit` for broadcast through the configured RPC. `GET /api/v1/trade/status` reports confirmation status and a Solscan link.
+
+Trading is disabled by default. Production requires `SOLANA_CLUSTER=mainnet-beta`, a mainnet RPC, `TRADING_ENABLED=true`, `JUPITER_API_KEY`, and a conservative `TRADING_MAX_SOL_LAMPORTS` cap. Slippage is bounded to 0.5–5%, buys are capped by the configured SOL limit, and build/submit requests require the authenticated user's linked primary wallet plus CSRF protection. This is user-confirmed trading, not automatic execution from a webhook.

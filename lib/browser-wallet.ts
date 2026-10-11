@@ -1,4 +1,4 @@
-import {PublicKey,Transaction} from '@solana/web3.js';
+import {PublicKey,Transaction,VersionedTransaction} from '@solana/web3.js';
 
 export type WalletProvider={
   publicKey?:PublicKey;
@@ -6,7 +6,8 @@ export type WalletProvider={
   isSolflare?:boolean;
   connect:()=>Promise<{publicKey:PublicKey}>;
   signMessage:(message:Uint8Array)=>Promise<{signature:Uint8Array}>;
-  signAndSendTransaction:(tx:Transaction)=>Promise<{signature:string}>;
+  signAndSendTransaction:(tx:Transaction|VersionedTransaction)=>Promise<{signature:string}>;
+  signTransaction?:(tx:Transaction|VersionedTransaction)=>Promise<Transaction|VersionedTransaction>;
 };
 type WalletWindow=Window & {solana?:WalletProvider & {providers?:WalletProvider[]};phantom?:{solana?:WalletProvider};solflare?:WalletProvider};
 export function availableWallets():{name:string;provider:WalletProvider}[] {
