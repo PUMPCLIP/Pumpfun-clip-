@@ -12,6 +12,7 @@ function appOrigin() {
 export const config = {
   appUrl: appOrigin(),
   cluster: process.env.SOLANA_CLUSTER || 'devnet',
+  indexerNetwork: process.env.SOLANA_INDEXER_NETWORK || 'mainnet-beta',
   rpc: process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com',
   mint: process.env.PUMPCLIP_MINT || '',
   decimals: Number(process.env.PUMPCLIP_DECIMALS || 6),
