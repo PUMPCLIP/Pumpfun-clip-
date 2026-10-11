@@ -1,6 +1,7 @@
 'use client';
 
 import {useEffect,useRef} from 'react';
+import {acceptsEventId} from '@/lib/sse-event-state.mjs';
 
 export type CreditEventMessage={type:string;id:string;data:Record<string,unknown>};
 type Options={enabled?:boolean;onEvent:(event:CreditEventMessage)=>void;onError?:(status?:number)=>void};
@@ -53,7 +54,7 @@ export function useCreditEvents({enabled=true,onEvent,onError}:Options){
           if(dataLines.length===0)return;
           const dataText=dataLines.join('\n');
           const id=eventId||lastEventId;
-          if(eventId&&/^\d+$/.test(eventId)&&lastEventId&&BigInt(eventId)<=BigInt(lastEventId)){eventType='message';eventId='';dataLines=[];return;}
+          if(!acceptsEventId(lastEventId,eventId)){eventType='message';eventId='';dataLines=[];return;}
           if(eventId)lastEventId=eventId;
           if(eventType!=='ready'){
             try{eventRef.current({type:eventType,id,data:JSON.parse(dataText)});}catch{}
