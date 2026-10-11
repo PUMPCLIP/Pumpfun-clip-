@@ -55,6 +55,7 @@ export default function ClipEngine() {
   const [paymentIntent, setPaymentIntent] = useState<{id:string;amountLamports:string;amountSol:string;destination:string;network:string;wallet:string}|null>(null);
   const [analytics,setAnalytics] = useState<ClipAnalytics|null>(null);
   const trackedInteractions = useRef(new Set<string>());
+  const interactionSession = useRef<string|null>(null);
 
   const refreshJobs = useCallback(async () => {
     try {
@@ -94,11 +95,12 @@ export default function ClipEngine() {
     const dedupeKey = `${job.id}:${eventType}`;
     if (trackedInteractions.current.has(dedupeKey)) return;
     trackedInteractions.current.add(dedupeKey);
+    interactionSession.current ||= crypto.randomUUID();
     try {
       const response = await fetch('/api/v1/me/clip-interactions', {
         method: 'POST',
         headers: {'content-type':'application/json','x-csrf-token':csrf(),'idempotency-key':crypto.randomUUID()},
-        body: JSON.stringify({clipId:job.id,eventId:crypto.randomUUID(),eventType,positionSeconds}),
+        body: JSON.stringify({clipId:job.id,eventId:crypto.randomUUID(),eventType,positionSeconds,sessionId:interactionSession.current}),
       });
       if (!response.ok) { trackedInteractions.current.delete(dedupeKey); return; }
       setAnalytics(current => {
