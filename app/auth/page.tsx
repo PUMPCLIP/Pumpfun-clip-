@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import type { Session } from '@supabase/supabase-js';
-import PrivyWalletLogin from '../privy-wallet-login';
+import {AuthProviderOptions} from '../privy-wallet-login';
 
 type AuthNotice = { kind: 'success' | 'error' | 'info'; text: string } | null;
 
@@ -155,7 +155,7 @@ export default function AuthPage() {
   const signInWithGoogle = async () => {
     setNotice(null);
     if (!supabase) {
-      setNotice({ kind: 'error', text: 'Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to the deployment environment.' });
+      setNotice({ kind: 'error', text: configLoading ? 'Secure sign-in is still initializing. Try again in a moment.' : 'Google sign-in is not configured on this deployment. Use email/password or contact the site administrator.' });
       return;
     }
     setBusy('google');
@@ -206,7 +206,7 @@ export default function AuthPage() {
             <button type="button" className={role === 'clipper' ? 'selected' : ''} aria-pressed={role === 'clipper'} onClick={() => chooseRole('clipper')}><strong>Clipper</strong><span>Find moments, publish cuts, earn.</span></button>
             <button type="button" className={role === 'streamer' ? 'selected' : ''} aria-pressed={role === 'streamer'} onClick={() => chooseRole('streamer')}><strong>Streamer</strong><span>Launch a pump, grow your reach.</span></button>
           </div>}
-          <form className="auth-email-form" onSubmit={submit}>
+          <form className="auth-email-form" id="auth-email-form" onSubmit={submit}>
             <label>Email address<input type="email" value={email} onChange={event => setEmail(event.target.value)} placeholder="you@studio.com" autoComplete="email" required disabled={!!busy}/></label>
             <label>Password<input type="password" value={password} onChange={event => setPassword(event.target.value)} placeholder={mode === 'signup' ? 'At least 8 characters' : 'Enter your password'} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} minLength={mode === 'signup' ? 8 : undefined} required disabled={!!busy}/></label>
             <button className="auth-secondary" type="submit" disabled={!!busy || configLoading || !supabase}>
@@ -217,11 +217,8 @@ export default function AuthPage() {
           {notice && <p className={`auth-notice auth-notice-${notice.kind}`} role={notice.kind === 'error' ? 'alert' : 'status'} aria-live="polite">{notice.text}</p>}
           <div className="auth-divider"><span>or continue with</span></div>
           <div className="auth-actions">
-            {process.env.NEXT_PUBLIC_PRIVY_APP_ID
-              ? <PrivyWalletLogin googleButton={<GoogleProviderButton onClick={signInWithGoogle} busy={busy === 'google'} disabled={!!busy || configLoading || !supabase}/>}/>
-              : <div className="auth-provider-grid auth-provider-grid-google-only"><GoogleProviderButton onClick={signInWithGoogle} busy={busy === 'google'} disabled={!!busy || configLoading || !supabase}/></div>}
-            {process.env.NEXT_PUBLIC_PRIVY_APP_ID&&<div className="auth-pump-note"><img src="/auth-icons/pumpfun-mark.svg" alt="Pump.fun"/><span>Pump.fun retired browser-wallet sign-in on Sept. 25, 2026. Connect a Solana wallet above to sign in to PumpClip.</span></div>}
-            <p className="auth-helper">{process.env.NEXT_PUBLIC_PRIVY_APP_ID?'Google sign-in uses a secure Supabase session. Phantom and Jupiter wallet sign-in use Privy and signed messages only—no transaction or payment.':'Google sign-in uses a secure Supabase session. Email and password sign-in are also available.'}</p>
+            <AuthProviderOptions googleButton={<GoogleProviderButton onClick={signInWithGoogle} busy={busy === 'google'} disabled={!!busy}/>}/>
+            <p className="auth-helper">Google uses a secure Supabase session. Phantom and Jupiter are wallet connections; the Pump.fun mark is informational, not a login method.</p>
           </div>
           <p className="auth-terms">By continuing, you agree to the pumpclips <a href="/">Terms</a> and <a href="/">Privacy</a>. No seed phrase is ever requested.</p>
         </div>

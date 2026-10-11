@@ -1,6 +1,7 @@
 'use client';
 
 import {useCallback,useEffect,useRef,useState} from 'react';
+import type {ReactNode} from 'react';
 import {useConnectWallet,useLoginWithSiws,usePrivy} from '@privy-io/react-auth';
 import type {BaseConnectedSolanaWallet,BaseConnectedWalletType} from '@privy-io/react-auth';
 import {useWallets as useSolanaWallets} from '@privy-io/react-auth/solana';
@@ -9,6 +10,7 @@ import {PRIVY_SESSION_SYNC_REQUEST_KEY,usePrivyServerSession} from './privy-auth
 
 type ApiData={code?:string;message?:string;[key:string]:unknown};
 type WalletProvider='phantom'|'jupiter';
+type WalletFallbackReason='unconfigured'|'initializing';
 
 const walletProviders:{id:WalletProvider;name:string;icon:string}[]=[
   {id:'phantom',name:'Phantom',icon:'/auth-icons/phantom.svg'},
@@ -28,18 +30,71 @@ async function requestJson<T extends ApiData>(path:string,init:RequestInit={}):P
 
 function shortAddress(value:string){return value.length>16?`${value.slice(0,7)}…${value.slice(-5)}`:value;}
 function toBase64(bytes:Uint8Array){let binary='';for(const byte of bytes)binary+=String.fromCharCode(byte);return window.btoa(binary);}
-function readCsrfCookie(){
-  const value=document.cookie.split('; ').find(cookie=>cookie.startsWith('pc_csrf='))?.split('=').slice(1).join('=')||'';
-  try{return decodeURIComponent(value);}catch{return value;}
+
+function PumpBrandBadge(){
+  return <div className="auth-provider-brand-badge" aria-label="Pump.fun ecosystem brand">
+    <img className="auth-provider-icon auth-pump-icon" src="/auth-icons/pumpfun-mark.svg" alt=""/>
+    <span className="auth-provider-title">Pump.fun</span>
+  </div>;
 }
 
-export default function PrivyWalletLogin({googleButton}:{googleButton:React.ReactNode}){
+function WalletConnectionDialog({provider,reason,onClose}:{provider:WalletProvider;reason:WalletFallbackReason;onClose:()=>void}){
+  const dialogRef=useRef<HTMLDialogElement>(null);
+  const providerName=walletProviders.find(item=>item.id===provider)?.name||'Solana';
+  useEffect(()=>{
+    const dialog=dialogRef.current;
+    if(!dialog)return;
+    if(!dialog.open)dialog.showModal();
+    return()=>{if(dialog.open)dialog.close();};
+  },[]);
+  const title=reason==='unconfigured'?'Wallet sign-in is not configured':'Wallet connection is still starting';
+  const description=reason==='unconfigured'
+    ?`This deployment has not configured ${providerName} wallet sign-in. Your wallet was not connected. Use Google or email/password instead.`
+    :'The wallet connection service is still initializing. Try again in a moment, or continue with Google or email/password.';
+  return <dialog ref={dialogRef} className="auth-wallet-dialog" aria-labelledby="auth-wallet-dialog-title" aria-describedby="auth-wallet-dialog-description" onCancel={event=>{event.preventDefault();onClose();}}>
+    <div className="auth-wallet-dialog-card">
+      <div className="auth-wallet-dialog-heading">
+        <img className="auth-provider-icon" src={walletProviders.find(item=>item.id===provider)?.icon} alt=""/>
+        <button className="auth-wallet-dialog-close" type="button" aria-label="Close wallet sign-in message" onClick={onClose}>×</button>
+      </div>
+      <h2 id="auth-wallet-dialog-title">{title}</h2>
+      <p id="auth-wallet-dialog-description">{description}</p>
+      <div className="auth-wallet-dialog-actions">
+        <button className="auth-secondary" type="button" onClick={onClose}>Close</button>
+        <a href="#auth-email-form" onClick={onClose}>Use email sign-in</a>
+      </div>
+    </div>
+  </dialog>;
+}
+
+function WalletProviderFallback({googleButton}:{googleButton:ReactNode}){
+  const [unavailableProvider,setUnavailableProvider]=useState<WalletProvider|null>(null);
+  return <>
+    <div className="auth-provider-grid">
+      {walletProviders.map(provider=><button key={provider.id} className="auth-provider-button" type="button" aria-label={`Continue with ${provider.name} wallet`} onClick={()=>setUnavailableProvider(provider.id)}>
+        <img className="auth-provider-icon" src={provider.icon} alt=""/>
+        <span className="auth-provider-title">{provider.name}</span>
+      </button>)}
+      {googleButton}
+      <PumpBrandBadge/>
+    </div>
+    {unavailableProvider&&<WalletConnectionDialog provider={unavailableProvider} reason="unconfigured" onClose={()=>setUnavailableProvider(null)}/>}
+  </>;
+}
+
+export function AuthProviderOptions({googleButton}:{googleButton:ReactNode}){
+  if(process.env.NEXT_PUBLIC_PRIVY_APP_ID)return <PrivyWalletLogin googleButton={googleButton}/>;
+  return <WalletProviderFallback googleButton={googleButton}/>;
+}
+
+export default function PrivyWalletLogin({googleButton}:{googleButton:ReactNode}){
   const {ready,authenticated,linkWallet}=usePrivy();
   const {generateSiwsMessage,loginWithSiws}=useLoginWithSiws();
   const {status:sessionStatus,wallet:sessionWallet,error:sessionError,retry}=usePrivyServerSession();
   const {ready:walletsReady,wallets}=useSolanaWallets();
   const [selectedAddress,setSelectedAddress]=useState('');
   const [walletBusy,setWalletBusy]=useState<WalletProvider|null>(null);
+  const [unavailableProvider,setUnavailableProvider]=useState<WalletProvider|null>(null);
   const [error,setError]=useState('');
   const [notice,setNotice]=useState('');
   const pendingProviderRef=useRef<WalletProvider|null>(null);
@@ -141,7 +196,8 @@ export default function PrivyWalletLogin({googleButton}:{googleButton:React.Reac
   },[authenticated,sessionStatus,verifyAndContinue]);
 
   function startWalletConnect(provider:WalletProvider){
-    if(!ready||walletBusy)return;
+    if(walletBusy)return;
+    if(!ready){setUnavailableProvider(provider);return;}
     setError('');setNotice('');setWalletBusy(provider);pendingProviderRef.current=provider;
     if(!authenticated)window.localStorage.setItem(PRIVY_SESSION_SYNC_REQUEST_KEY,'1');
     const name=walletProviders.find(item=>item.id===provider)?.name||'Solana';
@@ -170,7 +226,7 @@ export default function PrivyWalletLogin({googleButton}:{googleButton:React.Reac
     type="button"
     aria-label={`Continue with ${provider.name} wallet`}
     onClick={()=>startWalletConnect(provider.id)}
-    disabled={!ready||!!walletBusy||(authenticated&&sessionStatus==='syncing')}
+    disabled={!!walletBusy||(authenticated&&sessionStatus==='syncing')}
   >
     <img className="auth-provider-icon" src={provider.icon} alt=""/>
     <span className="auth-provider-title">{provider.name}</span>
@@ -181,6 +237,7 @@ export default function PrivyWalletLogin({googleButton}:{googleButton:React.Reac
     <div className="auth-provider-grid">
       {walletButtons}
       {googleButton}
+      <PumpBrandBadge/>
     </div>
     <div className="auth-wallet-state">
       {authenticated&&sessionStatus==='idle'&&<button className="auth-secondary" type="button" onClick={continueExistingPrivySession}>Continue with saved Privy session</button>}
@@ -208,5 +265,6 @@ export default function PrivyWalletLogin({googleButton}:{googleButton:React.Reac
       {error&&<p className="auth-notice auth-notice-error" role="alert" aria-live="polite">{error}</p>}
       {notice&&<p className="auth-notice auth-notice-info" role="status" aria-live="polite">{notice}</p>}
     </div>
+    {unavailableProvider&&<WalletConnectionDialog provider={unavailableProvider} reason="initializing" onClose={()=>setUnavailableProvider(null)}/>}
   </>;
 }
