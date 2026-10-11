@@ -5,7 +5,7 @@ import {ANSEM, FEATURED_CREATORS, THREADGUY, type FeaturedCreator} from '@/lib/c
 import {DEMO_CLIPS} from '@/lib/demo-clips';
 
 function embedUrl(youtubeId: string, autoplay = false) {
-  return `https://www.youtube-nocookie.com/embed/${youtubeId}?rel=0&modestbranding=1${autoplay ? '&autoplay=1' : ''}`;
+  return `https://www.youtube-nocookie.com/embed/${youtubeId}?controls=0&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1&enablejsapi=1&mute=0${autoplay ? '&autoplay=1' : ''}`;
 }
 
 function SocialBadge({label, handle, url}: {label: 'X' | 'Twitch'; handle: string; url: string}) {
