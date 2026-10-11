@@ -1,16 +1,13 @@
 import crypto from 'node:crypto';
-import {requireUser,jsonError} from '@/lib/auth';
-import {Connection} from '@solana/web3.js';
-import {config} from '@/lib/config';
-import {solscanUrl} from '@/lib/trading';
+import {requireUser,jsonError,ApiError} from '@/lib/auth';
+import {one} from '@/lib/db';
+import {reconcileTradeIntent} from '@/lib/clip-trade-settlement';
 export const runtime='nodejs';
 
-export async function GET(request:Request){
-  try{
-    await requireUser();
-    const signature=new URL(request.url).searchParams.get('signature')||'';
-    if(!/^[1-9A-HJ-NP-Za-km-z]{80,100}$/.test(signature)) throw new Error('INVALID_SIGNATURE');
-    const status=(await new Connection(config.rpc,'confirmed').getSignatureStatuses([signature])).value[0];
-    return Response.json({signature,status:status?.confirmationStatus||'pending',error:status?.err||null,solscanUrl:solscanUrl(signature)});
-  }catch(error){return jsonError(error,crypto.randomUUID());}
-}
+export async function GET(request:Request){try{
+  const user=await requireUser(),signature=new URL(request.url).searchParams.get('signature')||'';
+  if(!/^[1-9A-HJ-NP-Za-km-z]{80,100}$/.test(signature))throw new ApiError('INVALID_SIGNATURE',422);
+  const intent=await one<any>('SELECT * FROM trade_intents WHERE user_id=$1 AND signature=$2',[user.user_id,signature]);
+  if(!intent)throw new ApiError('TRADE_INTENT_NOT_FOUND',404);
+  return Response.json(await reconcileTradeIntent(intent));
+}catch(error){return jsonError(error,crypto.randomUUID());}}

@@ -1,15 +1,18 @@
-import {Connection,PublicKey,TransactionInstruction,TransactionMessage,VersionedTransaction} from '@solana/web3.js';
+import {Connection,PublicKey,SystemProgram,TransactionInstruction,TransactionMessage,VersionedTransaction} from '@solana/web3.js';
 import {NATIVE_MINT,TOKEN_2022_PROGRAM_ID,TOKEN_PROGRAM_ID} from '@solana/spl-token';
 import {OnlinePumpSdk,PUMP_PROGRAM_ID,PUMP_SDK,bondingCurvePda,getBuyTokenAmountFromSolAmount,getSellSolAmountFromTokenAmount,isBondingCurveMigrated} from '@pump-fun/pump-sdk';
 import BN from 'bn.js';
 import {config} from './config';
 import {ApiError} from './auth';
 import bs58 from 'bs58';
+import {createHash} from 'node:crypto';
 
 export const SOL_MINT='So11111111111111111111111111111111111111112';
 export type TradeSide='buy'|'sell';
 export type TradeRoute='pump'|'jupiter';
-export type TradeInput={mint:string;wallet:string;side:TradeSide;amountRaw:string;slippageBps:number};
+export type TradeInput={mint:string;wallet:string;side:TradeSide;amountRaw:string;slippageBps:number;clipLinkId?:string};
+export type TradeBuildOptions={intentId:string;clipLinkId?:string;feeLamports?:string;feeTreasury?:string};
+export type BuiltTrade={serializedTransaction:string;lastValidBlockHeight:number;route:TradeRoute;amountOutRaw?:string;priceImpactPct?:string;routeLabels?:string[];quote?:JupiterBuild};
 export type TradeQuote={route:TradeRoute;mint:string;wallet:string;side:TradeSide;amountInRaw:string;amountOutRaw:string;slippageBps:number;priceImpactPct?:string;routeLabels?:string[]};
 
 type JupiterInstruction={programId:string;accounts:{pubkey:string,isSigner:boolean,isWritable:boolean}[];data:string};
@@ -18,6 +21,9 @@ type JupiterBuild={inputMint:string;outputMint:string;inAmount:string;outAmount:
 const connection=()=>new Connection(config.rpc,'confirmed');
 const jupiterUrl='https://api.jup.ag/swap/v2/build';
 const maxComputeUnits=1_400_000;
+export const MEMO_PROGRAM_ID='MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr';
+export function tradeMemo(intentId:string,clipLinkId?:string){return `pumpclip:v1:${intentId}:${clipLinkId||'none'}`;}
+export function tradeMessageHash(transaction:VersionedTransaction){return createHash('sha256').update(transaction.message.serialize()).digest('hex');}
 
 export function assertTradingEnabled(){
   if(!config.tradingEnabled) throw new ApiError('TRADING_DISABLED',503,'Trading is not enabled for this deployment.');
@@ -28,14 +34,18 @@ export function parseTradeInput(input:unknown):TradeInput{
   const value=input as Record<string,unknown>;
   const mint=String(value.mint||'');
   const wallet=String(value.wallet||'');
-  const side=value.side==='sell'?'sell':'buy';
+  if(value.side!=='buy'&&value.side!=='sell') throw new ApiError('INVALID_TRADE_SIDE',422);
+  const side=value.side;
   const amountRaw=String(value.amountRaw||'');
   const slippageBps=Number(value.slippageBps??100);
   try{new PublicKey(mint);new PublicKey(wallet);}catch{throw new ApiError('INVALID_ADDRESS',422);}
   if(!/^[1-9][0-9]{0,18}$/.test(amountRaw)) throw new ApiError('INVALID_AMOUNT',422,'Amount must be a positive integer in the token input unit.');
   if(!Number.isInteger(slippageBps)||slippageBps<50||slippageBps>500) throw new ApiError('SLIPPAGE_OUT_OF_RANGE',422,'Slippage must be between 0.5% and 5%.');
   if(side==='buy' && BigInt(amountRaw)>config.tradingMaxSolLamports) throw new ApiError('TRADE_AMOUNT_TOO_LARGE',422,'This buy exceeds the configured SOL limit.');
-  return {mint,wallet,side,amountRaw,slippageBps};
+  const clipLinkId=value.clipLinkId===undefined||value.clipLinkId===null||value.clipLinkId===''?undefined:String(value.clipLinkId);
+  if(clipLinkId&&!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clipLinkId))throw new ApiError('INVALID_CLIP_LINK',422);
+  if(clipLinkId&&side!=='buy')throw new ApiError('CLIP_ATTRIBUTION_BUY_ONLY',422,'Clip attribution fees apply to buys only.');
+  return {mint,wallet,side,amountRaw,slippageBps,clipLinkId};
 }
 
 async function mintProgram(mint:PublicKey){
@@ -108,7 +118,19 @@ async function lookupTables(addresses:Record<string,string[]>|undefined){
   return results.filter((value):value is NonNullable<typeof value>=>Boolean(value));
 }
 
-async function buildPumpTransaction(input:TradeInput){
+function signingInstructions(wallet:PublicKey,options:TradeBuildOptions){
+  const extra:TransactionInstruction[]=[];
+  const fee=BigInt(options.feeLamports||'0');
+  if(fee>0n){
+    if(!options.feeTreasury)throw new ApiError('CLIP_FEE_TREASURY_REQUIRED',503,'Clip earnings are not configured for this deployment.');
+    if(fee>BigInt(Number.MAX_SAFE_INTEGER))throw new ApiError('TRADE_AMOUNT_TOO_LARGE',422);
+    extra.push(SystemProgram.transfer({fromPubkey:wallet,toPubkey:new PublicKey(options.feeTreasury),lamports:Number(fee)}));
+  }
+  extra.push(new TransactionInstruction({programId:new PublicKey(MEMO_PROGRAM_ID),keys:[{pubkey:wallet,isSigner:true,isWritable:false}],data:Buffer.from(tradeMemo(options.intentId,options.clipLinkId),'utf8')}));
+  return extra;
+}
+
+async function buildPumpTransaction(input:TradeInput,options:TradeBuildOptions){
   const c=connection(), mint=new PublicKey(input.mint), wallet=new PublicKey(input.wallet), tokenProgram=await mintProgram(mint), sdk=new OnlinePumpSdk(c);
   const [global,feeConfig,state]=await Promise.all([sdk.fetchGlobal(),sdk.fetchFeeConfig().catch(()=>null),sdk.fetchBuyState(mint,wallet,tokenProgram)]);
   if(!state.quoteMint.equals(NATIVE_MINT)) throw new ApiError('PUMP_QUOTE_NOT_SOL',422);
@@ -121,15 +143,16 @@ async function buildPumpTransaction(input:TradeInput){
     quoteOut=getSellSolAmountFromTokenAmount({global,feeConfig,mintSupply:state.bondingCurve.tokenTotalSupply,bondingCurve:state.bondingCurve,amount});
     instructions=await PUMP_SDK.sellInstructions({global,bondingCurveAccountInfo:state.bondingCurveAccountInfo,bondingCurve:state.bondingCurve,mint,user:wallet,amount,solAmount:quoteOut,slippage:input.slippageBps/100,tokenProgram,mayhemMode:state.bondingCurve.isMayhemMode});
   }
-  return finalizeTransaction(wallet,instructions,[],{amountOutRaw:quoteOut.toString(),route:'pump'});
+  return finalizeTransaction(wallet,[...instructions,...signingInstructions(wallet,options)],[],{amountOutRaw:quoteOut.toString(),route:'pump'});
 }
 
-async function buildJupiterTransaction(input:TradeInput){
+async function buildJupiterTransaction(input:TradeInput,options:TradeBuildOptions){
   const build=await jupiterBuild(input);
   const rawInstructions:JupiterInstruction[]=[...build.computeBudgetInstructions,...build.setupInstructions,build.swapInstruction,...(build.cleanupInstruction?[build.cleanupInstruction]:[]),...build.otherInstructions,...(build.tipInstruction?[build.tipInstruction]:[])];
   const instructions=rawInstructions.map(ix);
   const alts=await lookupTables(build.addressesByLookupTableAddress);
-  const result=await finalizeTransaction(new PublicKey(input.wallet),instructions,alts,{amountOutRaw:build.outAmount,route:'jupiter',priceImpactPct:build.priceImpactPct,routeLabels:(build.routePlan||[]).map(item=>item.swapInfo?.label).filter((x):x is string=>Boolean(x))});
+  const wallet=new PublicKey(input.wallet);
+  const result=await finalizeTransaction(wallet,[...instructions,...signingInstructions(wallet,options)],alts,{amountOutRaw:build.outAmount,route:'jupiter',priceImpactPct:build.priceImpactPct,routeLabels:(build.routePlan||[]).map(item=>item.swapInfo?.label).filter((x):x is string=>Boolean(x))});
   return {...result,quote:build};
 }
 
@@ -140,10 +163,11 @@ async function finalizeTransaction(wallet:PublicKey,instructions:TransactionInst
   return {serializedTransaction:Buffer.from(transaction.serialize()).toString('base64'),lastValidBlockHeight:latest.lastValidBlockHeight,...metadata};
 }
 
-export async function buildTradeTransaction(input:TradeInput){
+export async function buildTradeTransaction(input:TradeInput,options:TradeBuildOptions):Promise<BuiltTrade>{
   assertTradingEnabled();
   const route=await detectTradeRoute(input.mint);
-  return route==='pump'?buildPumpTransaction(input):buildJupiterTransaction(input);
+  if(route==='pump')return {...await buildPumpTransaction(input,options),route:'pump'};
+  return {...await buildJupiterTransaction(input,options),route:'jupiter'};
 }
 
 export function decodeSignedTransaction(value:string){

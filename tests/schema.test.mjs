@@ -6,7 +6,7 @@ import {PGlite} from '@electric-sql/pglite';
 test('database rejects wallet reuse, duplicate clip hashes and overreserved escrow',async()=>{
   const db=new PGlite();
   try {
-    for(const name of ['001_core.sql','002_studio.sql','003_rewards.sql','004_ai.sql','005_social.sql','006_tiktok.sql','007_youtube_uploads.sql','008_publications.sql','009_proof_and_operations.sql','010_identity_and_payouts.sql','011_feed_ai_usage.sql','012_native_video_clips.sql','013_creator_workflow.sql','014_worker_leases.sql','016_supabase_auth_identity.sql','017_public_profiles_pumpfun.sql','019_user_profiles.sql','020_profiles_social_activity.sql']) {
+    for(const name of ['001_core.sql','002_studio.sql','003_rewards.sql','004_ai.sql','005_social.sql','006_tiktok.sql','007_youtube_uploads.sql','008_publications.sql','009_proof_and_operations.sql','010_identity_and_payouts.sql','011_feed_ai_usage.sql','012_native_video_clips.sql','013_creator_workflow.sql','014_worker_leases.sql','016_supabase_auth_identity.sql','017_public_profiles_pumpfun.sql','018_clip_trial_plan.sql','019_user_profiles.sql','020_profiles_social_activity.sql','021_annual_clip_plan.sql','022_clip_payment_observability.sql','023_alert_pipeline.sql','024_mainnet_wallet_watch_targets.sql','025_clip_attribution_earnings.sql']) {
       const sql=readFileSync('db/migrations/'+name,'utf8').replace('CREATE EXTENSION IF NOT EXISTS pgcrypto;','');
       await db.exec(sql);
     }
@@ -27,6 +27,15 @@ test('database rejects wallet reuse, duplicate clip hashes and overreserved escr
     await db.query('INSERT INTO wallets(user_id,address,network) VALUES($1,$2,$3)',[u1,'wallet-one','devnet']);
     await assert.rejects(db.query('INSERT INTO wallets(user_id,address,network) VALUES($1,$2,$3)',[u2,'wallet-one','devnet']));
     const c=(await db.query('INSERT INTO campaigns(streamer_id,title) VALUES($1,$2) RETURNING id',[u1,'First campaign'])).rows[0].id;
+    const source=(await db.query("INSERT INTO stream_sources(owner_id,provider,external_id,display_name) VALUES($1,'twitch','channel-1','Streamer') RETURNING id",[u1])).rows[0].id;
+    const alert=(await db.query("INSERT INTO stream_alert_events(source_id,provider,external_event_id,event_type,payload,status) VALUES($1,'twitch','event-1','token_live',$2,'processed') RETURNING id",[source,JSON.stringify({mint:'So11111111111111111111111111111111111111112'})])).rows[0].id;
+    const clip=(await db.query("INSERT INTO clip_links(owner_id,campaign_id,stream_alert_event_id,url,platform) VALUES($1,$2,$3,$4,'x') RETURNING id",[u2,c,alert,'https://x.com/creator/status/123456789'])).rows[0].id;
+    await assert.rejects(db.query("INSERT INTO clip_links(owner_id,url,platform) VALUES($1,'https://x.com/creator/status/987654321','x')",[u2]));
+    const tradeIntent=(await db.query(`INSERT INTO trade_intents(id,user_id,wallet_address,mint,side,amount_raw,route,clip_link_id,clipper_user_id,streamer_user_id,stream_alert_event_id,fee_bps,fee_lamports,clipper_lamports,streamer_lamports,platform_lamports,message_hash)
+      VALUES(gen_random_uuid(),$1,'wallet-one','So11111111111111111111111111111111111111112','buy',1000000000,'pump',$2,$3,$4,$5,100,10000000,4000000,4000000,2000000,'hash') RETURNING id`,[u1,clip,u2,u1,alert])).rows[0].id;
+    await db.query("INSERT INTO clip_earnings_ledger(trade_intent_id,user_id,beneficiary_role,lamports) VALUES($1,$2,'clipper',4000000)",[tradeIntent,u2]);
+    await assert.rejects(db.query("INSERT INTO clip_earnings_ledger(trade_intent_id,user_id,beneficiary_role,lamports) VALUES($1,$2,'clipper',4000000)",[tradeIntent,u2]));
+    await db.query("INSERT INTO clip_earnings_ledger(trade_intent_id,beneficiary_role,lamports) VALUES($1,'platform',2000000)",[tradeIntent]);
     await db.query('INSERT INTO escrow_accounts(campaign_id,funded_lamports) VALUES($1,100)',[c]);
     await assert.rejects(db.query('UPDATE escrow_accounts SET reserved_lamports=101 WHERE campaign_id=$1',[c]));
     await db.query('INSERT INTO submissions(campaign_id,clipper_id,media_sha256) VALUES($1,$2,$3)',[c,u2,'a'.repeat(64)]);
@@ -51,8 +60,8 @@ test('database rejects wallet reuse, duplicate clip hashes and overreserved escr
     await db.query('INSERT INTO content_reports(reporter_id,submission_id,reason) VALUES($1,$2,$3)',[u1,submission,'Potential stolen content']);
     await assert.rejects(db.query('INSERT INTO content_reports(reporter_id,submission_id,reason) VALUES($1,$2,$3)',[u1,submission,'Duplicate report']));
     await assert.rejects(db.query('INSERT INTO user_rate_limits(user_id,action,request_count) VALUES($1,$2,0)',[u1,'upload']));
-    for(const name of ['020_profiles_social_activity.sql','019_user_profiles.sql','017_public_profiles_pumpfun.sql','016_supabase_auth_identity.sql','014_worker_leases.sql','013_creator_workflow.sql','012_native_video_clips.sql','011_feed_ai_usage.sql','009_proof_and_operations.sql','008_publications.sql','007_youtube_uploads.sql','006_tiktok.sql','005_social.sql','004_ai.sql','003_rewards.sql','002_studio.sql','001_core.sql']) {
-      if(name==='020_profiles_social_activity.sql'||name==='019_user_profiles.sql'||name==='017_public_profiles_pumpfun.sql'||name==='016_supabase_auth_identity.sql') await db.exec(readFileSync('db/migrations/down/'+name,'utf8'));
+    for(const name of ['025_clip_attribution_earnings.sql','024_mainnet_wallet_watch_targets.sql','023_alert_pipeline.sql','022_clip_payment_observability.sql','021_annual_clip_plan.sql','020_profiles_social_activity.sql','019_user_profiles.sql','018_clip_trial_plan.sql','017_public_profiles_pumpfun.sql','016_supabase_auth_identity.sql','014_worker_leases.sql','013_creator_workflow.sql','012_native_video_clips.sql','011_feed_ai_usage.sql','009_proof_and_operations.sql','008_publications.sql','007_youtube_uploads.sql','006_tiktok.sql','005_social.sql','004_ai.sql','003_rewards.sql','002_studio.sql','001_core.sql']) {
+      if(name==='025_clip_attribution_earnings.sql'||name==='020_profiles_social_activity.sql'||name==='019_user_profiles.sql'||name==='017_public_profiles_pumpfun.sql'||name==='016_supabase_auth_identity.sql') await db.exec(readFileSync('db/migrations/down/'+name,'utf8'));
       else if(name==='014_worker_leases.sql') await db.exec('ALTER TABLE studio_jobs DROP COLUMN lease_id, DROP COLUMN lease_expires_at; ALTER TABLE ai_jobs DROP COLUMN lease_id, DROP COLUMN lease_expires_at; ALTER TABLE ai_clip_requests DROP COLUMN lease_id, DROP COLUMN lease_expires_at; DROP TABLE IF EXISTS payout_destinations;');
       else if(name==='013_creator_workflow.sql') await db.exec('DROP TABLE campaign_disputes, campaign_messages, review_comments, submission_versions;');
       else await db.exec(readFileSync('db/migrations/down/'+name,'utf8'));
@@ -66,7 +75,7 @@ test('database rejects wallet reuse, duplicate clip hashes and overreserved escr
 test('account anonymization removes login and social identity but preserves campaign and reward history',async()=>{
   const db=new PGlite();
   try{
-    for(const name of ['001_core.sql','002_studio.sql','003_rewards.sql','004_ai.sql','005_social.sql','006_tiktok.sql','007_youtube_uploads.sql','008_publications.sql','009_proof_and_operations.sql','010_identity_and_payouts.sql','011_feed_ai_usage.sql','012_native_video_clips.sql','013_creator_workflow.sql','014_worker_leases.sql','016_supabase_auth_identity.sql','017_public_profiles_pumpfun.sql','019_user_profiles.sql','020_profiles_social_activity.sql']) {
+    for(const name of ['001_core.sql','002_studio.sql','003_rewards.sql','004_ai.sql','005_social.sql','006_tiktok.sql','007_youtube_uploads.sql','008_publications.sql','009_proof_and_operations.sql','010_identity_and_payouts.sql','011_feed_ai_usage.sql','012_native_video_clips.sql','013_creator_workflow.sql','014_worker_leases.sql','016_supabase_auth_identity.sql','017_public_profiles_pumpfun.sql','018_clip_trial_plan.sql','019_user_profiles.sql','020_profiles_social_activity.sql','021_annual_clip_plan.sql','022_clip_payment_observability.sql','023_alert_pipeline.sql','024_mainnet_wallet_watch_targets.sql','025_clip_attribution_earnings.sql']) {
       await db.exec(readFileSync('db/migrations/'+name,'utf8').replace('CREATE EXTENSION IF NOT EXISTS pgcrypto;',''));
     }
     const owner=(await db.query("INSERT INTO users(google_sub,email,display_name,public_handle) VALUES('owner-auth','owner@example.com','Owner','owner') RETURNING id")).rows[0].id;

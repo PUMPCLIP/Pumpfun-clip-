@@ -69,3 +69,8 @@ Mainnet money endpoints are disabled by configuration. Values are integer raw to
 ## API conventions
 
 Mutation calls require the session cookie, same origin, and `x-csrf-token` from the `pc_csrf` cookie. Money and job creation calls require an `idempotency-key`. Errors use `{code,message,details,requestId}`. The public discovery endpoints are `GET /api/v1/campaigns` and `GET /api/v1/campaigns/:id`. See [API overview](docs/api.md).
+
+
+## Clip attribution and earnings
+
+See [docs/clip-attribution.md](docs/clip-attribution.md) for supported social clip links, live-stream buy eligibility, the disclosed 1% fee and 40/40/20 SOL split, on-chain confirmation checks, and withdrawal setup. Eligible purchases add a separate native-SOL transfer to `SOL_TREASURY`; per-user ledger credits are created only after the confirmed transaction is verified. Dashboard withdrawals require the server-only `SOL_TREASURY_PRIVATE_KEY` to match the configured public treasury address. Never expose this key to the browser or commit it.
