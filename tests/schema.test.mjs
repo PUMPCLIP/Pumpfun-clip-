@@ -159,7 +159,7 @@ test('native migration upgrades legacy provider jobs without losing credits',asy
 test('worker leases recover stale jobs and prevent stale settlement or double refunds',async()=>{
   const db=new PGlite();
   try{
-    for(const name of ['001_core.sql','002_studio.sql','003_rewards.sql','004_ai.sql','005_social.sql','006_tiktok.sql','007_youtube_uploads.sql','008_publications.sql','009_proof_and_operations.sql','010_identity_and_payouts.sql','011_feed_ai_usage.sql','012_native_video_clips.sql','013_creator_workflow.sql','014_worker_leases.sql','016_supabase_auth_identity.sql']) await db.exec(readFileSync('db/migrations/'+name,'utf8').replace('CREATE EXTENSION IF NOT EXISTS pgcrypto;',''));
+    for(const name of ['001_core.sql','002_studio.sql','003_rewards.sql','004_ai.sql','005_social.sql','006_tiktok.sql','007_youtube_uploads.sql','008_publications.sql','009_proof_and_operations.sql','010_identity_and_payouts.sql','011_feed_ai_usage.sql','012_native_video_clips.sql','013_creator_workflow.sql','014_worker_leases.sql','016_supabase_auth_identity.sql','028_wallet_login_challenges.sql']) await db.exec(readFileSync('db/migrations/'+name,'utf8').replace('CREATE EXTENSION IF NOT EXISTS pgcrypto;',''));
     const user=(await db.query("INSERT INTO users(google_sub,email,display_name) VALUES('lease','lease@example.com','Lease') RETURNING id")).rows[0].id;
     const asset=(await db.query("INSERT INTO media_assets(owner_id,kind,object_key,mime,byte_size) VALUES($1,'source','lease-source','video/mp4',100) RETURNING id",[user])).rows[0].id;
     await db.query("INSERT INTO ai_usage_accounts(user_id,balance_units) VALUES($1,5)",[user]);

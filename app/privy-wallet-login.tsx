@@ -7,6 +7,8 @@ import type {BaseConnectedSolanaWallet,BaseConnectedWalletType} from '@privy-io/
 import {useWallets as useSolanaWallets} from '@privy-io/react-auth/solana';
 import bs58 from 'bs58';
 import {PRIVY_SESSION_SYNC_REQUEST_KEY,usePrivyServerSession} from './privy-auth';
+import DirectWalletLogin from './direct-wallet-login';
+import {usePrivyConfig} from './privy-config-context';
 
 type ApiData={code?:string;message?:string;[key:string]:unknown};
 type WalletProvider='phantom'|'jupiter';
@@ -67,24 +69,19 @@ function WalletConnectionDialog({provider,reason,onClose}:{provider:WalletProvid
   </dialog>;
 }
 
-function WalletProviderFallback({googleButton}:{googleButton:ReactNode}){
-  const [unavailableProvider,setUnavailableProvider]=useState<WalletProvider|null>(null);
-  return <>
-    <div className="auth-provider-grid">
-      {walletProviders.map(provider=><button key={provider.id} className="auth-provider-button" type="button" aria-label={`Continue with ${provider.name} wallet`} onClick={()=>setUnavailableProvider(provider.id)}>
-        <img className="auth-provider-icon" src={provider.icon} alt=""/>
-        <span className="auth-provider-title">{provider.name}</span>
-      </button>)}
-      {googleButton}
-      <PumpBrandBadge/>
-    </div>
-    {unavailableProvider&&<WalletConnectionDialog provider={unavailableProvider} reason="unconfigured" onClose={()=>setUnavailableProvider(null)}/>}
-  </>;
-}
-
 export function AuthProviderOptions({googleButton}:{googleButton:ReactNode}){
-  if(process.env.NEXT_PUBLIC_PRIVY_APP_ID)return <PrivyWalletLogin googleButton={googleButton}/>;
-  return <WalletProviderFallback googleButton={googleButton}/>;
+  const {appId,ready}=usePrivyConfig();
+  if(appId)return <PrivyWalletLogin googleButton={googleButton}/>;
+  if(ready)return <DirectWalletLogin googleButton={googleButton}/>;
+  return <>
+    <div className="auth-provider-grid" aria-busy="true">
+      {walletProviders.map(provider=><button key={provider.id} className="auth-provider-button" type="button" aria-label={`Loading ${provider.name} wallet sign-in`} disabled>
+        <img className="auth-provider-icon" src={provider.icon} alt=""/><span className="auth-provider-title">{provider.name}</span>
+      </button>)}
+      {googleButton}<PumpBrandBadge/>
+    </div>
+    <p className="auth-notice auth-notice-info" role="status" aria-live="polite">Setting up secure wallet sign-in…</p>
+  </>;
 }
 
 export default function PrivyWalletLogin({googleButton}:{googleButton:ReactNode}){
