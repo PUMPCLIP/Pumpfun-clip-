@@ -78,6 +78,7 @@ async function failJob(job,message){
     if(metadata.planCredits)await db.query("UPDATE clip_plans SET credits_used_units=GREATEST(credits_used_units-$2,0),updated_at=now() WHERE user_id=$1 AND status='active'",[ledger.user_id,Number(metadata.paidUnits||0)]);
     else if(metadata.planClip)await db.query("UPDATE clip_plans SET clips_used=GREATEST(clips_used-1,0),updated_at=now() WHERE user_id=$1 AND status='active'",[ledger.user_id]);
     await db.query("UPDATE ai_usage_ledger SET status='released' WHERE id=$1 AND status='reserved'",[updated.rows[0].usage_ledger_id]);
+    await db.query("SELECT pg_notify('pumpclip_credit_events',$1)",[JSON.stringify({id:crypto.randomUUID(),type:'credit_settled',payload:{userId:job.user_id,jobId:job.id,ledgerId:updated.rows[0].usage_ledger_id,settlement:'released'}})]);
    }
   }
   await db.query('COMMIT');
@@ -103,6 +104,7 @@ async function persistOutput(job,outputPath,rendered){
   if(ledger?.status==='reserved'){
    await db.query("UPDATE ai_usage_accounts SET consumed_units=consumed_units+$2,updated_at=now() WHERE user_id=$1",[ledger.user_id,ledger.units]);
    await db.query("UPDATE ai_usage_ledger SET status='consumed' WHERE id=$1 AND status='reserved'",[updated.rows[0].usage_ledger_id]);
+   await db.query("SELECT pg_notify('pumpclip_credit_events',$1)",[JSON.stringify({id:crypto.randomUUID(),type:'credit_settled',payload:{userId:job.user_id,jobId:job.id,ledgerId:updated.rows[0].usage_ledger_id,settlement:'consumed'}})]);
   }
   await db.query('COMMIT');
   return asset.rows[0].id;

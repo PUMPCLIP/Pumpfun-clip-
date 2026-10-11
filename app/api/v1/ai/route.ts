@@ -3,6 +3,7 @@ import {one} from '@/lib/db';
 import {mutation,ApiError,jsonError} from '@/lib/auth';
 import {gate} from '@/lib/access';
 import {reserveAiUnits} from '@/lib/ai-usage';
+import {publishCreditEvent} from '@/lib/credit-events';
 export const runtime='nodejs';
 export async function POST(request:Request){
  try {
@@ -17,6 +18,7 @@ export async function POST(request:Request){
   if(existing)return Response.json(existing,{status:202});
   const ledger=await reserveAiUnits(user.user_id,'highlight_analysis',idempotency,{campaignId:campaign.id});
   const job=await one<any>(`INSERT INTO ai_jobs(campaign_id,source_asset_id,requested_by,instructions,usage_ledger_id) VALUES($1,$2,$3,$4,$5) RETURNING id,status,created_at`,[campaign.id,campaign.source_asset_id,user.user_id,parsed.data.instructions,ledger.id]);
+  await publishCreditEvent(user.user_id,'credit_reserved',{jobId:job!.id,ledgerId:ledger.id,units:ledger.units}).catch(()=>{});
   return Response.json(job,{status:202});
  }catch(e){return jsonError(e,crypto.randomUUID());}
 }

@@ -4,6 +4,7 @@ import {mutation,requireUser,ApiError,jsonError} from '@/lib/auth';
 import {gate} from '@/lib/access';
 import {rateLimit} from '@/lib/rate-limit';
 import {reserveAiUnits,settleAiUnits} from '@/lib/ai-usage';
+import {publishCreditEvent} from '@/lib/credit-events';
 
 export const runtime='nodejs';
 const uuid=z.string().uuid();
@@ -89,5 +90,6 @@ export async function POST(request:Request){try{
   }
   await db.query("INSERT INTO audit_events(actor_id,action,subject_type,subject_id,detail) VALUES($1,'native_clip.queued','ai_clip_request',$2,$3)",
     [user.user_id,row.id,JSON.stringify({aspectRatio:input.aspectRatio,hasSourceUrl:Boolean(input.sourceUrl),rightsConfirmed:Boolean(input.sourceUrl&&input.rightsConfirmed)})]);
+  await publishCreditEvent(user.user_id,'credit_reserved',{jobId:row.id,ledgerId:ledger.id,units:ledger.units}).catch(()=>{});
   return Response.json(row,{status:202});
 }catch(error){return jsonError(error,crypto.randomUUID());}}

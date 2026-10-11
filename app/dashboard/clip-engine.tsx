@@ -82,6 +82,17 @@ export default function ClipEngine() {
     return () => window.clearInterval(timer);
   }, [refreshJobs, refreshPlan]);
 
+  useEffect(() => {
+    if (authRequired) return;
+    const events = new EventSource('/api/v1/ai/events');
+    const refresh = () => { void refreshJobs(); void refreshPlan(); };
+    events.addEventListener('credit_reserved', refresh);
+    events.addEventListener('credit_settled', refresh);
+    events.addEventListener('job_status_changed', refresh);
+    events.onerror = refresh;
+    return () => { events.removeEventListener('credit_reserved', refresh); events.removeEventListener('credit_settled', refresh); events.removeEventListener('job_status_changed', refresh); events.close(); };
+  }, [authRequired, refreshJobs, refreshPlan]);
+
   const preparePlan = async () => {
     setPlanBusy(true); setError('');
     try {
