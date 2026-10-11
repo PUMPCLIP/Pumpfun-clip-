@@ -9,12 +9,16 @@ function appOrigin() {
   }
 }
 
+// ENABLE_LIVE_TRADING is the deployment-facing name. Keep TRADING_ENABLED as
+// a fallback so existing local environments continue to work during migration.
+const liveTradingFlag = process.env.ENABLE_LIVE_TRADING ?? process.env.TRADING_ENABLED;
+
 export const config = {
   appUrl: appOrigin(),
   cluster: process.env.SOLANA_CLUSTER || 'devnet',
   indexerNetwork: process.env.SOLANA_INDEXER_NETWORK || 'mainnet-beta',
   rpc: process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com',
-  tradingEnabled: process.env.TRADING_ENABLED === 'true',
+  tradingEnabled: liveTradingFlag === 'true',
   jupiterApiKey: process.env.JUPITER_API_KEY || '',
   tradingMaxSolLamports: BigInt(process.env.TRADING_MAX_SOL_LAMPORTS || '1000000000'),
   mint: process.env.PUMPCLIP_MINT || '',
