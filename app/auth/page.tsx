@@ -7,6 +7,14 @@ import PrivyWalletLogin from '../privy-wallet-login';
 
 type AuthNotice = { kind: 'success' | 'error' | 'info'; text: string } | null;
 
+function GoogleProviderButton({onClick,busy,disabled}:{onClick:()=>void;busy:boolean;disabled:boolean}){
+  return <button className="auth-provider-button auth-provider-google" type="button" onClick={onClick} disabled={disabled} aria-label="Continue with Google">
+    <img className="auth-provider-icon auth-google-icon" src="/auth-icons/google-g.svg" alt=""/>
+    <span className="auth-provider-title">{busy?'Connecting…':'Google'}</span>
+    {busy&&<span className="auth-spinner" aria-hidden="true"/>}
+  </button>;
+}
+
 export default function AuthPage() {
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
@@ -173,7 +181,6 @@ export default function AuthPage() {
     <main className="auth-page">
       <header className="auth-header">
         <a className="auth-brand" href="/"><img src="/logo.svg" alt=""/><span>pumpclips</span></a>
-        <a className="auth-back" href="/">Back to home <span>↗</span></a>
       </header>
       <section className="auth-layout">
         <div className="auth-story">
@@ -208,13 +215,13 @@ export default function AuthPage() {
           </form>
           {configLoading && !notice && <p className="auth-notice auth-notice-info" role="status" aria-live="polite">Setting up secure sign-in…</p>}
           {notice && <p className={`auth-notice auth-notice-${notice.kind}`} role={notice.kind === 'error' ? 'alert' : 'status'} aria-live="polite">{notice.text}</p>}
-          <div className="auth-divider"><span>or</span></div>
+          <div className="auth-divider"><span>or continue with</span></div>
           <div className="auth-actions">
-            {process.env.NEXT_PUBLIC_PRIVY_APP_ID&&<PrivyWalletLogin/>}
-            <button className="auth-primary" type="button" onClick={signInWithGoogle} disabled={!!busy || configLoading || !supabase}>
-              {busy === 'google' ? <><span className="auth-spinner" aria-hidden="true"/>Connecting…</> : busy === 'session' ? <><span className="auth-spinner" aria-hidden="true"/>Opening workspace…</> : <>Continue with Google <span>↗</span></>}
-            </button>
-            <p className="auth-helper">{process.env.NEXT_PUBLIC_PRIVY_APP_ID ? 'Wallet sign-in is verified by Privy and PumpClip. ' : ''}Email/password and Google sign-in use secure Supabase sessions.</p>
+            {process.env.NEXT_PUBLIC_PRIVY_APP_ID
+              ? <PrivyWalletLogin googleButton={<GoogleProviderButton onClick={signInWithGoogle} busy={busy === 'google'} disabled={!!busy || configLoading || !supabase}/>}/>
+              : <div className="auth-provider-grid auth-provider-grid-google-only"><GoogleProviderButton onClick={signInWithGoogle} busy={busy === 'google'} disabled={!!busy || configLoading || !supabase}/></div>}
+            {process.env.NEXT_PUBLIC_PRIVY_APP_ID&&<div className="auth-pump-note"><img src="/auth-icons/pumpfun-mark.svg" alt="Pump.fun"/><span>Pump.fun retired browser-wallet sign-in on Sept. 25, 2026. Connect a Solana wallet above to sign in to PumpClip.</span></div>}
+            <p className="auth-helper">{process.env.NEXT_PUBLIC_PRIVY_APP_ID?'Google sign-in uses a secure Supabase session. Phantom and Jupiter wallet sign-in use Privy and signed messages only—no transaction or payment.':'Google sign-in uses a secure Supabase session. Email and password sign-in are also available.'}</p>
           </div>
           <p className="auth-terms">By continuing, you agree to the pumpclips <a href="/">Terms</a> and <a href="/">Privacy</a>. No seed phrase is ever requested.</p>
         </div>

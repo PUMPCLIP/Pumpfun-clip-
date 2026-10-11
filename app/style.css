@@ -715,3 +715,29 @@ html,body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystem
     margin: 56px auto 0;
   }
 }
+
+
+/* Auth provider actions: compact, consistent choices with preserved brand mark proportions. */
+.auth-actions{display:flex;flex-direction:column;gap:13px}
+.auth-provider-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.auth-provider-button{display:flex;align-items:center;justify-content:flex-start;gap:10px;min-width:0;min-height:54px;padding:10px 12px;border:1px solid var(--brand-line);border-radius:12px;background:rgba(255,255,255,.025);color:var(--brand-ink);font:inherit;text-align:left;transition:transform .18s ease,border-color .18s ease,background .18s ease,box-shadow .18s ease}
+.auth-provider-button:hover:not(:disabled){transform:translateY(-1px);border-color:var(--brand-green);background:rgba(35,245,138,.055);box-shadow:0 8px 20px rgba(0,0,0,.15)}
+.auth-provider-button:focus-visible{outline:2px solid var(--brand-green);outline-offset:2px}
+.auth-provider-button:disabled{opacity:.6;cursor:not-allowed}
+.auth-provider-icon{display:block;flex:0 0 25px;width:25px;height:25px;object-fit:contain;border-radius:7px}
+.auth-google-icon{background:#fff}
+.auth-provider-title{overflow:hidden;color:var(--brand-ink);font-size:13px;font-weight:750;letter-spacing:-.01em;text-overflow:ellipsis;white-space:nowrap}
+.auth-provider-google{grid-column:1/-1;justify-self:center;width:calc(50% - 5px)}
+.auth-provider-grid-google-only .auth-provider-google{grid-column:1/-1;justify-self:center;width:min(100%,280px)}
+.auth-wallet-state{display:grid;gap:10px}
+.auth-wallet-state:empty{display:none}
+.auth-wallet-state>.auth-notice,.auth-wallet-state>.auth-helper{margin:0}
+.auth-pump-note{display:flex;align-items:center;gap:9px;color:var(--brand-muted);font-size:11px;line-height:1.45}
+.auth-pump-note img{display:block;flex:0 0 28px;width:28px;height:28px;object-fit:contain;padding:4px;border:1px solid var(--brand-line);border-radius:8px;background:#fff}
+@media (min-width:440px){
+  .auth-provider-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .auth-provider-google{grid-column:auto;justify-self:stretch;width:auto}
+}
+@media (prefers-reduced-motion:reduce){
+  .auth-provider-button{transition:none}
+}
