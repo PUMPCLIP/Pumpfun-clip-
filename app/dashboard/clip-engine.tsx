@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import {PublicKey,SystemProgram,Transaction} from '@solana/web3.js';
 import {walletFor} from '@/lib/browser-wallet';
+import {useCreditEvents} from '@/app/hooks/use-credit-events';
 
 type ClipJob = {
   id: string;
@@ -82,16 +83,7 @@ export default function ClipEngine() {
     return () => window.clearInterval(timer);
   }, [refreshJobs, refreshPlan]);
 
-  useEffect(() => {
-    if (authRequired) return;
-    const events = new EventSource('/api/v1/ai/events');
-    const refresh = () => { void refreshJobs(); void refreshPlan(); };
-    events.addEventListener('credit_reserved', refresh);
-    events.addEventListener('credit_settled', refresh);
-    events.addEventListener('job_status_changed', refresh);
-    events.onerror = refresh;
-    return () => { events.removeEventListener('credit_reserved', refresh); events.removeEventListener('credit_settled', refresh); events.removeEventListener('job_status_changed', refresh); events.close(); };
-  }, [authRequired, refreshJobs, refreshPlan]);
+  useCreditEvents({enabled:!authRequired,onEvent:()=>{void refreshJobs();void refreshPlan();},onError:status=>{if(status===401||status===403)setAuthRequired(true);else{void refreshJobs();void refreshPlan();}}});
 
   const preparePlan = async () => {
     setPlanBusy(true); setError('');
