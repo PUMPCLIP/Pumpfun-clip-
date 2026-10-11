@@ -93,9 +93,9 @@ export default function AuthPage() {
         unsubscribe = () => listener.subscription.unsubscribe();
         const { data } = await client.auth.getSession();
         if (data.session && !cancelled) await completeServerSignIn(data.session);
-      } catch (error) {
+      } catch {
         if (!cancelled) {
-          setNotice({ kind: 'error', text: error instanceof Error ? error.message : 'Authentication setup is unavailable.' });
+          setNotice({ kind: 'error', text: 'Secure email and Google sign-in are not available on this deployment. You can still connect a supported wallet or contact the site administrator.' });
         }
       } finally {
         if (!cancelled) setConfigLoading(false);
@@ -117,7 +117,7 @@ export default function AuthPage() {
     event.preventDefault();
     setNotice(null);
     if (!supabase) {
-      setNotice({ kind: 'error', text: 'Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to the deployment environment.' });
+      setNotice({ kind: 'error', text: 'Secure email sign-in is not available on this deployment. Try a supported wallet or contact the site administrator.' });
       return;
     }
     setBusy('email');
@@ -155,7 +155,7 @@ export default function AuthPage() {
   const signInWithGoogle = async () => {
     setNotice(null);
     if (!supabase) {
-      setNotice({ kind: 'error', text: configLoading ? 'Secure sign-in is still initializing. Try again in a moment.' : 'Google sign-in is not configured on this deployment. Use email/password or contact the site administrator.' });
+      setNotice({ kind: 'error', text: configLoading ? 'Secure sign-in is still initializing. Try again in a moment.' : 'Google sign-in is not available on this deployment. Try a supported wallet or contact the site administrator.' });
       return;
     }
     setBusy('google');
@@ -184,9 +184,9 @@ export default function AuthPage() {
       </header>
       <section className="auth-layout">
         <div className="auth-story">
-          <span className="auth-kicker">PUMPCLIPS / CREATOR NETWORK</span>
+          <span className="auth-kicker">ONE WORKSPACE / EVERY CREATOR ROLE</span>
           <h1>Make your<br/><em>next move.</em></h1>
-          <p>One account for creators, clippers, campaigns, and rewards. Start with the workspace that keeps the work moving.</p>
+          <p>One secure workspace for creators, clippers, campaigns, and rewards. Pick up where your next good idea begins.</p>
           <div className="auth-proof-grid">
             <div className="auth-proof"><span>01</span><p><strong>Source to signal.</strong><br/>Bring long-form video into a network built around the moment that matters.</p></div>
             <div className="auth-proof"><span>02</span><p><strong>Work with trust.</strong><br/>Clear briefs, visible profiles, and rewards that follow the work.</p></div>
@@ -204,7 +204,7 @@ export default function AuthPage() {
           </div>
           {mode === 'signup' && <div className="role-picker" aria-label="Choose your role">
             <button type="button" className={role === 'clipper' ? 'selected' : ''} aria-pressed={role === 'clipper'} onClick={() => chooseRole('clipper')}><strong>Clipper</strong><span>Find moments, publish cuts, earn.</span></button>
-            <button type="button" className={role === 'streamer' ? 'selected' : ''} aria-pressed={role === 'streamer'} onClick={() => chooseRole('streamer')}><strong>Streamer</strong><span>Launch a pump, grow your reach.</span></button>
+            <button type="button" className={role === 'streamer' ? 'selected' : ''} aria-pressed={role === 'streamer'} onClick={() => chooseRole('streamer')}><strong>Streamer</strong><span>Set a brief and grow your reach.</span></button>
           </div>}
           <form className="auth-email-form" id="auth-email-form" onSubmit={submit}>
             <label>Email address<input type="email" value={email} onChange={event => setEmail(event.target.value)} placeholder="you@studio.com" autoComplete="email" required disabled={!!busy}/></label>
@@ -218,9 +218,9 @@ export default function AuthPage() {
           <div className="auth-divider"><span>or continue with</span></div>
           <div className="auth-actions">
             <AuthProviderOptions googleButton={<GoogleProviderButton onClick={signInWithGoogle} busy={busy === 'google'} disabled={!!busy}/>}/>
-            <p className="auth-helper">Google uses a secure Supabase session. Phantom and Jupiter are wallet connections; the Pump.fun mark is informational, not a login method.</p>
+            <p className="auth-helper">Google uses secure OAuth. Wallet sign-in verifies ownership with a domain-bound message; new wallets create a wallet-only account. Pump.fun is shown for ecosystem context, not as a login method.</p>
           </div>
-          <p className="auth-terms">By continuing, you agree to the pumpclips <a href="/">Terms</a> and <a href="/">Privacy</a>. No seed phrase is ever requested.</p>
+          <p className="auth-terms">Wallet sign-in verifies ownership only. No seed phrase or transaction is ever requested.</p>
         </div>
       </section>
     </main>

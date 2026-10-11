@@ -10,7 +10,7 @@ export default function PrivyShell({children, appId}:{children:React.ReactNode;a
   return <PrivyProvider appId={appId} config={{
     loginMethods:['email','google','twitter','tiktok','twitch','wallet'],
     loginMethodsAndOrder:{primary:['email','google','twitter','tiktok'],overflow:['twitch']},
-    appearance:{theme:'dark',accentColor:'#a8e063',logo:'/logo.svg',showWalletLoginFirst:true,walletChainType:'solana-only',walletList:['phantom','jupiter','detected_solana_wallets']},
+    appearance:{theme:'dark',accentColor:'#10b981',logo:'/logo.svg',showWalletLoginFirst:true,walletChainType:'solana-only',walletList:['phantom','jupiter','detected_solana_wallets']},
     externalWallets:{solana:{connectors:solanaConnectors}},
     embeddedWallets:{solana:{createOnLogin:'users-without-wallets'}},
   }}><PrivySessionBridge>{children}</PrivySessionBridge></PrivyProvider>;

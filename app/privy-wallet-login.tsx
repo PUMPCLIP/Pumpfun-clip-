@@ -1,19 +1,16 @@
 'use client';
 
-import {useCallback,useEffect,useRef,useState} from 'react';
+import {Component,useCallback,useEffect,useRef,useState} from 'react';
 import type {ReactNode} from 'react';
 import {useConnectWallet,useLoginWithSiws,usePrivy} from '@privy-io/react-auth';
 import type {BaseConnectedSolanaWallet,BaseConnectedWalletType} from '@privy-io/react-auth';
 import {useWallets as useSolanaWallets} from '@privy-io/react-auth/solana';
 import bs58 from 'bs58';
 import {PRIVY_SESSION_SYNC_REQUEST_KEY,usePrivyServerSession} from './privy-auth';
-import DirectWalletLogin from './direct-wallet-login';
+import DirectWalletLogin,{performDirectWalletLogin,type WalletProvider} from './direct-wallet-login';
 import {usePrivyConfig} from './privy-config-context';
 
 type ApiData={code?:string;message?:string;[key:string]:unknown};
-type WalletProvider='phantom'|'jupiter';
-type WalletFallbackReason='unconfigured'|'initializing';
-
 const walletProviders:{id:WalletProvider;name:string;icon:string}[]=[
   {id:'phantom',name:'Phantom',icon:'/auth-icons/phantom.svg'},
   {id:'jupiter',name:'Jupiter',icon:'/auth-icons/jupiter.svg'},
@@ -40,48 +37,16 @@ function PumpBrandBadge(){
   </div>;
 }
 
-function WalletConnectionDialog({provider,reason,onClose}:{provider:WalletProvider;reason:WalletFallbackReason;onClose:()=>void}){
-  const dialogRef=useRef<HTMLDialogElement>(null);
-  const providerName=walletProviders.find(item=>item.id===provider)?.name||'Solana';
-  useEffect(()=>{
-    const dialog=dialogRef.current;
-    if(!dialog)return;
-    if(!dialog.open)dialog.showModal();
-    return()=>{if(dialog.open)dialog.close();};
-  },[]);
-  const title=reason==='unconfigured'?'Wallet sign-in is not configured':'Wallet connection is still starting';
-  const description=reason==='unconfigured'
-    ?`This deployment has not configured ${providerName} wallet sign-in. Your wallet was not connected. Use Google or email/password instead.`
-    :'The wallet connection service is still initializing. Try again in a moment, or continue with Google or email/password.';
-  return <dialog ref={dialogRef} className="auth-wallet-dialog" aria-labelledby="auth-wallet-dialog-title" aria-describedby="auth-wallet-dialog-description" onCancel={event=>{event.preventDefault();onClose();}}>
-    <div className="auth-wallet-dialog-card">
-      <div className="auth-wallet-dialog-heading">
-        <img className="auth-provider-icon" src={walletProviders.find(item=>item.id===provider)?.icon} alt=""/>
-        <button className="auth-wallet-dialog-close" type="button" aria-label="Close wallet sign-in message" onClick={onClose}>×</button>
-      </div>
-      <h2 id="auth-wallet-dialog-title">{title}</h2>
-      <p id="auth-wallet-dialog-description">{description}</p>
-      <div className="auth-wallet-dialog-actions">
-        <button className="auth-secondary" type="button" onClick={onClose}>Close</button>
-        <a href="#auth-email-form" onClick={onClose}>Use email sign-in</a>
-      </div>
-    </div>
-  </dialog>;
+class PrivyWalletErrorBoundary extends Component<{children:ReactNode;fallback:ReactNode},{failed:boolean}>{
+  state={failed:false};
+  static getDerivedStateFromError(){return {failed:true};}
+  render(){return this.state.failed?this.props.fallback:this.props.children;}
 }
 
 export function AuthProviderOptions({googleButton}:{googleButton:ReactNode}){
   const {appId,ready}=usePrivyConfig();
-  if(appId)return <PrivyWalletLogin googleButton={googleButton}/>;
-  if(ready)return <DirectWalletLogin googleButton={googleButton}/>;
-  return <>
-    <div className="auth-provider-grid" aria-busy="true">
-      {walletProviders.map(provider=><button key={provider.id} className="auth-provider-button" type="button" aria-label={`Loading ${provider.name} wallet sign-in`} disabled>
-        <img className="auth-provider-icon" src={provider.icon} alt=""/><span className="auth-provider-title">{provider.name}</span>
-      </button>)}
-      {googleButton}<PumpBrandBadge/>
-    </div>
-    <p className="auth-notice auth-notice-info" role="status" aria-live="polite">Setting up secure wallet sign-in…</p>
-  </>;
+  if(appId)return <PrivyWalletErrorBoundary fallback={<DirectWalletLogin googleButton={googleButton} initialMessage="Privy wallet access is unavailable in this browser. Connect an installed Solana wallet below."/>}><PrivyWalletLogin googleButton={googleButton}/></PrivyWalletErrorBoundary>;
+  return <DirectWalletLogin googleButton={googleButton} initialMessage={!ready?'Checking secure wallet setup. You can still use an installed Solana wallet while it loads.':''}/>;
 }
 
 export default function PrivyWalletLogin({googleButton}:{googleButton:ReactNode}){
@@ -91,7 +56,7 @@ export default function PrivyWalletLogin({googleButton}:{googleButton:ReactNode}
   const {ready:walletsReady,wallets}=useSolanaWallets();
   const [selectedAddress,setSelectedAddress]=useState('');
   const [walletBusy,setWalletBusy]=useState<WalletProvider|null>(null);
-  const [unavailableProvider,setUnavailableProvider]=useState<WalletProvider|null>(null);
+  const [directMode,setDirectMode]=useState(false);
   const [error,setError]=useState('');
   const [notice,setNotice]=useState('');
   const pendingProviderRef=useRef<WalletProvider|null>(null);
@@ -176,11 +141,15 @@ export default function PrivyWalletLogin({googleButton}:{googleButton:ReactNode}
 
   const {connectWallet}=useConnectWallet({
     onSuccess:({wallet})=>{void handleWalletConnected(wallet);},
-    onError:()=>{
+    onError:(caught)=>{
       pendingProviderRef.current=null;
       if(!authenticated)window.localStorage.removeItem(PRIVY_SESSION_SYNC_REQUEST_KEY);
       setWalletBusy(null);
-      setError('Wallet connection was cancelled or could not be completed. Please try again.');
+      const details=caught&&typeof caught==='object'?caught as {code?:unknown;message?:unknown}:{};
+      const cancelled=details.code===4001||String(details.code||'')==='4001'||/reject|cancel/i.test(typeof details.message==='string'?details.message:'');
+      if(cancelled){setError('Wallet connection was cancelled. Nothing was signed; you can try again.');return;}
+      if(!authenticated){setDirectMode(true);setError('');return;}
+      setError('Wallet connection could not be opened. Please retry the wallet link.');
     },
   });
 
@@ -194,7 +163,12 @@ export default function PrivyWalletLogin({googleButton}:{googleButton:ReactNode}
 
   function startWalletConnect(provider:WalletProvider){
     if(walletBusy)return;
-    if(!ready){setUnavailableProvider(provider);return;}
+    if(!ready){
+      if(authenticated){setError('Your secure session is ready, but the wallet connector is still initializing. Please retry in a moment.');return;}
+      setError('');setWalletBusy(provider);
+      void performDirectWalletLogin(provider,{onNotice:setNotice,onError:setError}).finally(()=>setWalletBusy(null));
+      return;
+    }
     setError('');setNotice('');setWalletBusy(provider);pendingProviderRef.current=provider;
     if(!authenticated)window.localStorage.setItem(PRIVY_SESSION_SYNC_REQUEST_KEY,'1');
     const name=walletProviders.find(item=>item.id===provider)?.name||'Solana';
@@ -206,9 +180,13 @@ export default function PrivyWalletLogin({googleButton}:{googleButton:ReactNode}
         description:`Connect your ${name} wallet to PumpClip. You will only be asked to sign a message; no transaction is required.`,
       });
     }catch(caught){
-      pendingProviderRef.current=null;setWalletBusy(null);
+      pendingProviderRef.current=null;
       if(!authenticated)window.localStorage.removeItem(PRIVY_SESSION_SYNC_REQUEST_KEY);
-      setError(caught instanceof Error?caught.message:'Could not open the wallet connection. Please try again.');
+      if(!authenticated){
+        void performDirectWalletLogin(provider,{onNotice:setNotice,onError:setError}).finally(()=>setWalletBusy(null));
+        return;
+      }
+      setWalletBusy(null);setError(caught instanceof Error?caught.message:'Could not open the wallet connection. Please try again.');
     }
   }
 
@@ -229,6 +207,8 @@ export default function PrivyWalletLogin({googleButton}:{googleButton:ReactNode}
     <span className="auth-provider-title">{provider.name}</span>
     {walletBusy===provider.id&&<span className="auth-spinner" aria-hidden="true"/>}
   </button>);
+
+  if(directMode)return <DirectWalletLogin googleButton={googleButton} initialMessage="Privy could not open the wallet connection. Use an installed wallet below to continue."/>;
 
   return <>
     <div className="auth-provider-grid">
@@ -262,6 +242,5 @@ export default function PrivyWalletLogin({googleButton}:{googleButton:ReactNode}
       {error&&<p className="auth-notice auth-notice-error" role="alert" aria-live="polite">{error}</p>}
       {notice&&<p className="auth-notice auth-notice-info" role="status" aria-live="polite">{notice}</p>}
     </div>
-    {unavailableProvider&&<WalletConnectionDialog provider={unavailableProvider} reason="initializing" onClose={()=>setUnavailableProvider(null)}/>}
   </>;
 }
