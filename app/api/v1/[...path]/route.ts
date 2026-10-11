@@ -127,6 +127,9 @@ async function handle(request:Request,path:string[],method:string):Promise<Respo
         await c.query(`INSERT INTO wallets(user_id,address,network,provider,is_embedded,is_primary)
           VALUES($1,$2,$3,'external',false,true)
           ON CONFLICT(user_id,address) DO UPDATE SET network=EXCLUDED.network,is_primary=true,updated_at=now()`,[user.user_id,challenge.address,config.cluster]);
+        await c.query(`INSERT INTO wallet_watch_targets(user_id,wallet_id,address,network,label)
+          SELECT $1,id,address,network,'Linked wallet' FROM wallets WHERE user_id=$1 AND address=$2
+          ON CONFLICT(user_id,address,network) DO UPDATE SET wallet_id=EXCLUDED.wallet_id,enabled=true,updated_at=now()`,[user.user_id,challenge.address]);
         await audit(c,user.user_id,'wallet.linked','wallet',used.id,{address:challenge.address});
       });
     } catch(e:any) {if(e.code==='23505') throw new ApiError('WALLET_ALREADY_LINKED',409); throw e;}
