@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import {PublicKey,SystemProgram,Transaction} from '@solana/web3.js';
 import {walletFor} from '@/lib/browser-wallet';
 import {useCreditEvents} from '@/app/hooks/use-credit-events';
@@ -20,6 +20,8 @@ type ClipJob = {
 
 type ApiPayload<T> = T & { message?: string; code?: string };
 type ClipPlan = {trial:{total:number;remaining:number};plan:{status:'active';name:string;annualCredits:number;used:number;remaining:number;balanceUnits:number;periodStart:string;periodEnd:string}|null;payment:{amountLamports:string;amountSol:string;destination:string;network:string}|null;wallet:string|null};
+type InteractionType = 'preview_started' | 'preview_paused' | 'preview_completed' | 'download_clicked';
+type ClipAnalytics = {stats:{total_events:number;clips_tracked:number;previews_started:number;previews_completed:number;previews_paused:number;downloads_clicked:number;active_days:number;last_interaction_at:string|null};recent:Array<{clip_id:string;aspect_ratio:string;status:string;total_events:number;previews_started:number;previews_completed:number;downloads_clicked:number;last_interaction_at:string}>};
 
 const csrf = () => decodeURIComponent(document.cookie.split('; ').find(cookie => cookie.startsWith('pc_csrf='))?.split('=')[1] || '');
 const assetUrl = (id: string) => `/api/v1/assets/${encodeURIComponent(id)}`;
@@ -51,6 +53,8 @@ export default function ClipEngine() {
   const [plan, setPlan] = useState<ClipPlan | null>(null);
   const [planBusy, setPlanBusy] = useState(false);
   const [paymentIntent, setPaymentIntent] = useState<{id:string;amountLamports:string;amountSol:string;destination:string;network:string;wallet:string}|null>(null);
+  const [analytics,setAnalytics] = useState<ClipAnalytics|null>(null);
+  const trackedInteractions = useRef(new Set<string>());
 
   const refreshJobs = useCallback(async () => {
     try {
@@ -76,12 +80,48 @@ export default function ClipEngine() {
     } catch (caught) { setError(caught instanceof Error ? caught.message : 'Could not load your clip plan.'); }
   }, []);
 
+  const refreshAnalytics = useCallback(async () => {
+    try {
+      const response = await fetch('/api/v1/me/clip-interactions', { cache: 'no-store' });
+      if (response.status === 401) return;
+      setAnalytics(await readResponse<ClipAnalytics>(response) as ClipAnalytics);
+    } catch {
+      // Analytics must never interrupt clipping or rendering.
+    }
+  }, []);
+
+  const trackInteraction = useCallback(async (job:ClipJob,eventType:InteractionType,positionSeconds?:number) => {
+    const dedupeKey = `${job.id}:${eventType}`;
+    if (trackedInteractions.current.has(dedupeKey)) return;
+    trackedInteractions.current.add(dedupeKey);
+    try {
+      const response = await fetch('/api/v1/me/clip-interactions', {
+        method: 'POST',
+        headers: {'content-type':'application/json','x-csrf-token':csrf(),'idempotency-key':crypto.randomUUID()},
+        body: JSON.stringify({clipId:job.id,eventId:crypto.randomUUID(),eventType,positionSeconds}),
+      });
+      if (!response.ok) { trackedInteractions.current.delete(dedupeKey); return; }
+      setAnalytics(current => {
+        if (!current) return current;
+        const stats = {...current.stats,total_events:current.stats.total_events+1};
+        if (eventType==='preview_started') stats.previews_started += 1;
+        if (eventType==='preview_paused') stats.previews_paused += 1;
+        if (eventType==='preview_completed') stats.previews_completed += 1;
+        if (eventType==='download_clicked') stats.downloads_clicked += 1;
+        return {...current,stats};
+      });
+    } catch {
+      trackedInteractions.current.delete(dedupeKey);
+    }
+  }, []);
+
   useEffect(() => {
     void refreshJobs();
     void refreshPlan();
+    void refreshAnalytics();
     const timer = window.setInterval(() => { void refreshJobs(); void refreshPlan(); }, 4000);
     return () => window.clearInterval(timer);
-  }, [refreshJobs, refreshPlan]);
+  }, [refreshJobs, refreshPlan, refreshAnalytics]);
 
   useCreditEvents({enabled:!authRequired,onEvent:()=>{void refreshJobs();void refreshPlan();},onError:status=>{if(status===401||status===403)setAuthRequired(true);else{void refreshJobs();void refreshPlan();}}});
 
@@ -256,14 +296,15 @@ export default function ClipEngine() {
       </aside>
     </div>}
 
+    {!authRequired && analytics && <section className="clip-interaction-analytics panel" aria-labelledby="clip-analytics-title"><div className="clip-interaction-analytics-head"><div><p className="kicker">CREATOR SIGNAL / PRIVATE ANALYTICS</p><h2 id="clip-analytics-title">How your clips are moving.</h2></div><span>{analytics.stats.active_days} active day{analytics.stats.active_days===1?'':'s'}</span></div><div className="clip-interaction-metrics"><div><strong>{analytics.stats.previews_started}</strong><small>Preview starts</small></div><div><strong>{analytics.stats.previews_completed}</strong><small>Completions</small></div><div><strong>{analytics.stats.downloads_clicked}</strong><small>Downloads</small></div><div><strong>{analytics.stats.clips_tracked}</strong><small>Clips tracked</small></div></div></section>}
     <section className="clip-engine-jobs" aria-labelledby="clip-jobs-title">
       <div className="clip-engine-jobs-head"><div><p className="kicker">YOUR WORK / RECENT EXPORTS</p><h2 id="clip-jobs-title">Recent clips</h2></div><button type="button" className="text-button" onClick={() => void refreshJobs()} disabled={authRequired}>Refresh ↻</button></div>
       {authRequired ? <p className="clip-engine-empty">Sign in to see your recent jobs.</p> : jobs.length === 0 ? <p className="clip-engine-empty">Your clip jobs will appear here after you submit a source.</p> : <div className="clip-engine-job-grid">{jobs.map(job => <article className="clip-engine-job" key={job.id}>
         <div className="clip-engine-job-head"><span className={'clip-engine-status '+job.status}><i/>{job.status}</span><small>{new Date(job.created_at).toLocaleString()}</small></div>
-        {job.output_asset_id ? <video className="clip-engine-preview" style={{aspectRatio:previewAspect(job.aspect_ratio)}} src={job.preview_url || assetUrl(job.output_asset_id)} controls playsInline preload="metadata" aria-label={`${job.aspect_ratio} rendered video preview`}/> : <div className="clip-engine-preview-placeholder" style={{aspectRatio:previewAspect(job.aspect_ratio)}}>{job.status === 'failed' ? 'Render needs attention' : 'Rendering your clip…'}</div>}
+        {job.output_asset_id ? <video className="clip-engine-preview" style={{aspectRatio:previewAspect(job.aspect_ratio)}} src={job.preview_url || assetUrl(job.output_asset_id)} controls playsInline preload="metadata" aria-label={`${job.aspect_ratio} rendered video preview`} onPlay={event => void trackInteraction(job,'preview_started',event.currentTarget.currentTime)} onPause={event => {if(!event.currentTarget.ended) void trackInteraction(job,'preview_paused',event.currentTarget.currentTime);}} onEnded={event => void trackInteraction(job,'preview_completed',event.currentTarget.duration)}/> : <div className="clip-engine-preview-placeholder" style={{aspectRatio:previewAspect(job.aspect_ratio)}}>{job.status === 'failed' ? 'Render needs attention' : 'Rendering your clip…'}</div>}
         <div className="clip-engine-job-meta"><strong>{job.aspect_ratio} export</strong>{job.start_seconds != null && job.end_seconds != null && <span>{timeLabel(job.start_seconds)}–{timeLabel(job.end_seconds)}</span>}</div>
         {job.error_message && <p className="clip-engine-job-error" role="alert">{job.error_message}</p>}
-        {job.output_asset_id && <a className="clip-engine-download" href={job.download_url || `${assetUrl(job.output_asset_id)}?download=1`} download={`pumpclip-${job.aspect_ratio.replace(':', 'x')}.mp4`}>Download MP4 ↓</a>}
+        {job.output_asset_id && <a className="clip-engine-download" href={job.download_url || `${assetUrl(job.output_asset_id)}?download=1`} download={`pumpclip-${job.aspect_ratio.replace(':', 'x')}.mp4`} onClick={() => void trackInteraction(job,'download_clicked')}>Download MP4 ↓</a>}
       </article>)}</div>}
     </section>
   </section>;
