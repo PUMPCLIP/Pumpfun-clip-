@@ -180,8 +180,10 @@ export default function AuthPage() {
           <span className="auth-kicker">PUMPCLIPS / CREATOR NETWORK</span>
           <h1>Make your<br/><em>next move.</em></h1>
           <p>One account for creators, clippers, campaigns, and rewards. Start with the workspace that keeps the work moving.</p>
-          <div className="auth-proof"><span>01</span><p><strong>Source to signal.</strong><br/>Bring long-form video into a network built around the moment that matters.</p></div>
-          <div className="auth-proof"><span>02</span><p><strong>Work with trust.</strong><br/>Clear briefs, visible profiles, and rewards that follow the work.</p></div>
+          <div className="auth-proof-grid">
+            <div className="auth-proof"><span>01</span><p><strong>Source to signal.</strong><br/>Bring long-form video into a network built around the moment that matters.</p></div>
+            <div className="auth-proof"><span>02</span><p><strong>Work with trust.</strong><br/>Clear briefs, visible profiles, and rewards that follow the work.</p></div>
+          </div>
         </div>
         <div className="auth-card">
           <div className="auth-tabs" role="group" aria-label="Authentication mode">
