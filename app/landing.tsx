@@ -3,6 +3,7 @@
 import {FormEvent, useEffect, useRef, useState} from 'react';
 import {creatorPortrait} from '@/lib/creator-images';
 import CreatorShowcase from '@/app/components/creator-showcase';
+import DemoPreview from '@/app/components/demo-preview';
 
 type Clip={id:string;clipper_id:string;clipper_name:string;campaign_title:string;target_platforms:string[];video_url:string;view_count:number};
 type Person={id:string;display_name:string;roles:string[];accepted_count:number;total_views:number;reputation_score:number;earned_lamports?:number;campaign_count?:number;video_url?:string;campaign_title?:string};
@@ -50,10 +51,6 @@ export default function Landing(){
   const [selectedPlatform,setSelectedPlatform]=useState('YouTube');
   const [message,setMessage]=useState('');
   const [mobileMenuOpen,setMobileMenuOpen]=useState(false);
-  const [heroFallback,setHeroFallback]=useState(false);
-  const [heroPlaying,setHeroPlaying]=useState(true);
-  const [heroMuted,setHeroMuted]=useState(true);
-  const heroVideo=useRef<HTMLVideoElement>(null);
 
   useEffect(()=>{
     const load=()=>Promise.allSettled([
@@ -77,7 +74,6 @@ export default function Landing(){
 
   const visiblePeople=people.slice(0,6);
   // Keep the conversion hero consistent even when live feed clips change.
-  const heroSrc=DEMO_VIDEO;
 
   const submitUrl=(event:FormEvent)=>{
     event.preventDefault();
@@ -93,18 +89,14 @@ export default function Landing(){
     }catch{setMessage('Enter a valid public video link.');return;}
   };
 
-  async function toggleHeroPlayback(){
-    const video=heroVideo.current;if(!video)return;
-    if(video.paused){await video.play().catch(()=>undefined);setHeroPlaying(true);}else{video.pause();setHeroPlaying(false);}
-  }
-  function toggleHeroSound(){const video=heroVideo.current;if(!video)return;video.muted=!video.muted;setHeroMuted(video.muted);}
 
   return <main className="opus-landing">
     <header className="opus-nav"><a className="opus-logo" href="/" aria-label="pumpclips home"><img src="/logo.svg" alt="" width={1024} height={1024} /> <span>pumpclips</span></a><button className="opus-menu-toggle" type="button" aria-label={mobileMenuOpen?'Close navigation menu':'Open navigation menu'} aria-expanded={mobileMenuOpen} aria-controls="primary-navigation" onClick={()=>setMobileMenuOpen(open=>!open)}><span/><span/><span/></button><nav id="primary-navigation" className={mobileMenuOpen?'is-open':''} aria-label="Primary navigation"><a href="#showcase" onClick={()=>setMobileMenuOpen(false)}>Showcase</a><a href="/people" onClick={()=>setMobileMenuOpen(false)}>Creators + clippers</a><a href="/feed" onClick={()=>setMobileMenuOpen(false)}>Watch feed</a></nav></header>
 
     <section className="opus-hero opus-hero-expanded"><div className="opus-hero-copy"><img className="opus-hero-logo" src="/logo.svg" alt="pumpclips official logo" width={1200} height={1200} fetchPriority="high" /><span className="opus-kicker">THE CLIPPING WORKSPACE / 001</span><h1>Turn long video<br/><em>into momentum.</em></h1><p>Drop in a long-form video. pumpclips helps you find the moments worth sharing, then lets creators and clippers turn them into rewards.</p>
       <form className="opus-url-form" onSubmit={submitUrl}><div className="opus-url-row"><span className="url-link-icon">↗</span><input value={url} onChange={event=>setUrl(event.target.value)} placeholder="Paste a YouTube, TikTok, Instagram, or X link…" aria-label="Long video URL" inputMode="url" enterKeyHint="go" autoCapitalize="none" autoCorrect="off" aria-describedby="hero-url-help"/><button type="submit">Get clips <span>↗</span></button></div><div className="platform-pills" role="group" aria-label="Supported source platforms">{platforms.map(([icon,name])=><button type="button" className={selectedPlatform===name?'selected':''} key={name} onClick={()=>setSelectedPlatform(name)} aria-pressed={selectedPlatform===name}><b aria-hidden="true">{icon}</b>{name}</button>)}</div></form>{message&&<div className="opus-form-message" role="status"><span>{message}</span><a className="opus-form-action" href="/auth">Sign in to continue <span aria-hidden="true">↗</span></a></div>}<small id="hero-url-help" className="opus-note">No upload required · 9:16-ready output · Creator review · Transparent rewards</small><div className="mobile-conversion-proof" aria-label="Why start with a link"><span><b>01</b><strong>Paste</strong><small>one public link</small></span><span><b>02</b><strong>Pick</strong><small>the moment</small></span><span><b>03</b><strong>Publish</strong><small>in 9:16</small></span></div></div>
-      <div className="opus-hero-demo"><div className="demo-browser"><div className="demo-top"><span>● ● ●</span><small>PUMPCLIPS / DEMO PREVIEW</small><b>9:16</b></div><div className="demo-video live-hero-video"><video className="hero-media is-source" ref={heroVideo} key={heroSrc} src={heroSrc} poster={DEMO_POSTER} muted={heroMuted} autoPlay loop playsInline preload="metadata" onPlay={()=>setHeroPlaying(true)} onPause={()=>setHeroPlaying(false)} onError={()=>setHeroFallback(true)} aria-label="Interactive pumpclips clip preview"/><div className="live-video-shade"/><div className="live-video-copy"><span className="live-video-kicker">LIVE PREVIEW</span><strong>Make this moment count.</strong><small>Upload a source and turn attention into reach.</small></div><div className="live-video-controls"><button type="button" onClick={toggleHeroPlayback} aria-label={heroPlaying?'Pause video':'Play video'}>{heroPlaying?'Ⅱ':'▶'}</button><button type="button" onClick={toggleHeroSound} aria-label={heroMuted?'Unmute video':'Mute video'}>{heroMuted?'🔇':'🔊'}</button><span><i/><i/><i/><i/><i/><i/><i/></span></div></div><div className="demo-timeline"><span>00:42</span><i/><i/><i/><i/><i/><i/><span>01:12</span></div></div></div></section>
+    </section>
+    <DemoPreview/>
 
     <CreatorShowcase variant="landing"/>
     <section className="opus-proof"><span>USED BY PEOPLE WHO MAKE THE INTERNET MOVE</span><i/><span>9:16 READY</span><i/><span>CREATOR REVIEW</span><i/><span>REWARD THE WORK</span></section>
