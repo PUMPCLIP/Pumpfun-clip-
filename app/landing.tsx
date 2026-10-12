@@ -1,35 +1,20 @@
 'use client';
 
 import {FormEvent, useEffect, useRef, useState} from 'react';
-import {creatorPortrait} from '@/lib/creator-images';
-import CreatorShowcase from '@/app/components/creator-showcase';
-import DemoPreview from '@/app/components/demo-preview';
+import GlobalCreatorShowcase from '@/app/components/global-creator-showcase';
+import {CREATOR_SPOTLIGHTS} from '@/lib/creator-spotlights';
 
 type Clip={id:string;clipper_id:string;clipper_name:string;campaign_title:string;target_platforms:string[];video_url:string;view_count:number};
-type Person={id:string;display_name:string;roles:string[];accepted_count:number;total_views:number;reputation_score:number;earned_lamports?:number;campaign_count?:number;video_url?:string;campaign_title?:string};
+type Person={id:string;display_name:string;public_handle?:string;avatar_url?:string|null;roles:string[];accepted_count:number;total_views:number;reputation_score:number;earned_lamports?:number;campaign_count?:number;video_url?:string;campaign_title?:string};
 
-const DEMO_VIDEO='/white-man-walk-demo.mp4';
-const DEMO_POSTER='/white-man-walk-demo.webp';
+const HERO_CREATOR_SLUGS=['molly-mae-hague','lena-situations','kai-cenat'];
+const HERO_CREATORS=CREATOR_SPOTLIGHTS.filter(creator=>HERO_CREATOR_SLUGS.includes(creator.slug));
 const platforms=[['▶','YouTube'],['♪','TikTok'],['◎','Instagram'],['𝕏','X']] as const;
-const mockClips=[
-  {label:'THE CONTRARIAN TAKE',score:99},
-  {label:'BUILD IN PUBLIC',score:98},
-  {label:'THE ROOM WENT SILENT',score:94},
-  {label:'LATE NIGHT BUILD LOGS',score:97}
-];
 const logos=['YouTube','TikTok','Instagram','X'];
-const fallbackPeople=[
-  {initials:'MC',name:'Maya Chen',role:'Creator · Business',metric:'12 campaigns',label:'published'},
-  {initials:'AR',name:'Alex Rivera',role:'Clipper · Hook-first editor',metric:'4.9 rating',label:'portfolio'},
-  {initials:'JP',name:'Jordan Park',role:'Clipper · Story + pacing',metric:'31 clips',label:'delivered'},
-  {initials:'SK',name:'Sam Kim',role:'Creator · The Signal Room',metric:'8 campaigns',label:'published'},
-  {initials:'NT',name:'Noah Tran',role:'Clipper · Culture / commentary',metric:'96% approval',label:'trusted'},
-  {initials:'NW',name:'New voices',role:'Join the PumpClip network',metric:'Open roles',label:'available'}
-];
 
+function creatorInitials(name:string){return name.split(/\s+/).filter(Boolean).slice(0,2).map(part=>part[0]).join('').toUpperCase();}
 function compact(value:number){return new Intl.NumberFormat('en',{notation:'compact',maximumFractionDigits:1}).format(Number(value||0));}
 function earned(lamports:number){const sol=Number(lamports||0)/1_000_000_000;return sol?`${sol.toFixed(sol<1?.2:1)} SOL earned`:'Rewards starting';}
-function supportedVideoUrl(value:string){try{const url=new URL(value,'https://pumpclip.app');return url.protocol==='https:'||url.protocol==='http:';}catch{return false;}}
 function platformForHost(hostname:string){const host=hostname.replace(/^www\./,'');if(host==='youtube.com'||host==='youtu.be'||host.endsWith('.youtube.com'))return 'YouTube';if(host==='tiktok.com'||host.endsWith('.tiktok.com'))return 'TikTok';if(host==='instagram.com'||host.endsWith('.instagram.com'))return 'Instagram';if(host==='x.com'||host.endsWith('.x.com')||host==='twitter.com'||host.endsWith('.twitter.com'))return 'X';return '';}
 
 function PreviewMedia({src}:{src:string}){
@@ -38,8 +23,7 @@ function PreviewMedia({src}:{src:string}){
   const play=()=>{if(video.current&&!failed)video.current.play().catch(()=>undefined);};
   const pause=()=>{if(video.current){video.current.pause();video.current.currentTime=0;}}
   return <div className={'opus-clip-media '+(failed?'is-fallback':'')} onMouseEnter={play} onMouseLeave={pause} onFocus={play} onBlur={pause}>
-    <video ref={video} src={src||DEMO_VIDEO} muted loop playsInline preload="none" poster={DEMO_POSTER} onError={()=>setFailed(true)} aria-label="Clip preview video"/>
-    <img src={DEMO_POSTER} alt="Street footage preview" aria-hidden="true" loading="lazy"/>
+    {failed?<div className="opus-clip-unavailable" role="img" aria-label="Clip preview unavailable">Preview unavailable</div>:<video ref={video} src={src} muted loop playsInline preload="none" onError={()=>setFailed(true)} aria-label="Published creator clip preview"/>}
   </div>;
 }
 
@@ -51,6 +35,7 @@ export default function Landing(){
   const [selectedPlatform,setSelectedPlatform]=useState('YouTube');
   const [message,setMessage]=useState('');
   const [mobileMenuOpen,setMobileMenuOpen]=useState(false);
+  const [heroCreatorSlug,setHeroCreatorSlug]=useState('molly-mae-hague');
 
   useEffect(()=>{
     const load=()=>Promise.allSettled([
@@ -73,6 +58,7 @@ export default function Landing(){
   },[mobileMenuOpen]);
 
   const visiblePeople=people.slice(0,6);
+  const heroCreator=HERO_CREATORS.find(creator=>creator.slug===heroCreatorSlug)||HERO_CREATORS[0]!;
   // Keep the conversion hero consistent even when live feed clips change.
 
   const submitUrl=(event:FormEvent)=>{
@@ -91,7 +77,7 @@ export default function Landing(){
 
 
   return <main className="opus-landing">
-    <header className="opus-nav"><a className="opus-logo" href="/" aria-label="pumpclips home"><img src="/logo.svg" alt="" width={1024} height={1024} /> <span>pumpclips</span></a><button className="opus-menu-toggle" type="button" aria-label={mobileMenuOpen?'Close navigation menu':'Open navigation menu'} aria-expanded={mobileMenuOpen} aria-controls="primary-navigation" onClick={()=>setMobileMenuOpen(open=>!open)}><span/><span/><span/></button><nav id="primary-navigation" className={mobileMenuOpen?'is-open':''} aria-label="Primary navigation"><a href="#showcase" onClick={()=>setMobileMenuOpen(false)}>Showcase</a><a href="/people" onClick={()=>setMobileMenuOpen(false)}>Creators + clippers</a><a href="/feed" onClick={()=>setMobileMenuOpen(false)}>Watch feed</a></nav><div className="opus-nav-actions"><a className="opus-login" href="/auth">Sign in</a><a className="opus-nav-join" href="/auth?mode=signup">Get started <span aria-hidden="true">↗</span></a></div></header>
+    <header className="opus-nav"><a className="opus-logo" href="/" aria-label="pumpclips home"><img src="/logo.svg" alt="" width={1024} height={1024} /> <span>pumpclips</span></a><button className="opus-menu-toggle" type="button" aria-label={mobileMenuOpen?'Close navigation menu':'Open navigation menu'} aria-expanded={mobileMenuOpen} aria-controls="primary-navigation" onClick={()=>setMobileMenuOpen(open=>!open)}><span/><span/><span/></button><nav id="primary-navigation" className={mobileMenuOpen?'is-open':''} aria-label="Primary navigation"><a href="#creator-spotlights" onClick={()=>setMobileMenuOpen(false)}>Spotlights</a><a href="/people" onClick={()=>setMobileMenuOpen(false)}>Creators + clippers</a><a href="/feed" onClick={()=>setMobileMenuOpen(false)}>Watch feed</a></nav><div className="opus-nav-actions"><a className="opus-login" href="/auth">Sign in</a><a className="opus-nav-join" href="/auth?mode=signup">Get started <span aria-hidden="true">↗</span></a></div></header>
 
     <section className="opus-hero opus-hero-expanded">
       <div className="opus-hero-copy">
@@ -106,26 +92,32 @@ export default function Landing(){
         <small id="hero-url-help" className="opus-note">No upload required · 9:16-ready output · Creator review · Transparent rewards</small>
         <div className="mobile-conversion-proof" aria-label="A simple three-step workflow"><span><b>01</b><strong>Paste</strong><small>one public link</small></span><span><b>02</b><strong>Pick</strong><small>the moment</small></span><span><b>03</b><strong>Publish</strong><small>in 9:16</small></span></div>
       </div>
-      <div className="opus-hero-visual" role="img" aria-label="Example of a finished vertical creator clip">
+      <div className="opus-hero-visual" aria-label={`Featured public clip from ${heroCreator.name}`}>
         <div className="hero-visual-glow" aria-hidden="true"/>
-        <div className="hero-visual-card">
+        <div className="hero-visual-card hero-creator-card">
           <div className="hero-visual-toolbar"><span><i/> PUMPCLIP / STORY PREVIEW</span><b>9:16</b></div>
-          <div className="hero-visual-frame"><img src={DEMO_POSTER} alt="Sample video frame used to preview a creator clip" width={1280} height={720} fetchPriority="high"/><div className="hero-visual-vignette"/><span className="hero-moment-tag">EDITOR’S PICK <i/> 00:42</span><div className="hero-visual-caption"><small>PUMPCLIP / MOMENT 01</small><strong>Make the moment<br/><em>matter.</em></strong></div><span className="hero-visual-auto">CAPTIONS READY</span></div>
-          <div className="hero-visual-footer"><div><small>SOURCE</small><strong>Long-form video</strong></div><div><small>FORMAT</small><strong>Vertical · 9:16</strong></div><span aria-hidden="true">↗</span></div>
+          <div className={'hero-visual-frame hero-creator-frame'+(heroCreator.videoProvider==='youtube'?' has-thumbnail':'')}>
+            {heroCreator.videoProvider==='youtube'&&<img className="hero-creator-thumbnail" src={`https://i.ytimg.com/vi/${heroCreator.videoId}/hq720.jpg`} alt="" loading="lazy" decoding="async" onError={event=>{event.currentTarget.style.display='none';event.currentTarget.parentElement?.classList.remove('has-thumbnail');}}/>}
+            <span className="hero-creator-monogram" aria-hidden="true">{creatorInitials(heroCreator.name)}</span>
+            <div className="hero-visual-vignette" aria-hidden="true"/>
+            <span className="hero-moment-tag">{heroCreator.flag} PUBLIC CREATOR <i/> {heroCreator.videoProvider.toUpperCase()}</span>
+            <div className="hero-visual-caption"><small>{heroCreator.role}</small><strong>{heroCreator.name}</strong><span className="hero-creator-clip-title">{heroCreator.clipTitle}</span></div>
+          </div>
+          <div className="hero-visual-footer"><div><small>FEATURED CREATOR</small><strong>{heroCreator.name}</strong></div><div><small>CLIP FORMAT</small><strong>{heroCreator.videoProvider.toUpperCase()} · 9:16</strong></div><a className="hero-visual-play" href={heroCreator.clipUrl} target="_blank" rel="noopener noreferrer" aria-label={`Open ${heroCreator.name}'s official clip on ${heroCreator.videoProvider}`}>↗</a></div>
+          <div className="hero-creator-tabs" role="group" aria-label="Choose a featured creator">
+            {HERO_CREATORS.map(creator=><button type="button" key={creator.slug} aria-pressed={heroCreator.slug===creator.slug} onClick={()=>setHeroCreatorSlug(creator.slug)}><span aria-hidden="true">{creatorInitials(creator.name)}</span><span>{creator.name}</span></button>)}
+          </div>
         </div>
       </div>
     </section>
-    <DemoPreview/>
-
-    <CreatorShowcase variant="landing"/>
+    <GlobalCreatorShowcase/>
     <section className="opus-proof"><span>BUILT FOR THE CLIP ECONOMY</span><i/><span>9:16 READY</span><i/><span>CREATOR REVIEW</span><i/><span>REWARD THE WORK</span></section>
     <section className="capsule-journey" aria-labelledby="capsule-journey-title"><div className="capsule-heading"><span className="opus-kicker">THE PUMPCLIP LOOP / 002</span><h2 id="capsule-journey-title">One capsule.<br/><em>Everywhere it needs to go.</em></h2><p>From source upload to a paid, published moment, the PumpClip capsule carries the work forward.</p></div><div className="capsule-track" aria-label="Animated five-step capsule journey"><div className="capsule-line"/><span className="journey-capsule" aria-hidden="true"><i/><b/></span>{[['UPLOAD','Capsule enters the logo.','upload'],['PUMP ENGINE','Capsule crosses the timeline.','process'],['FEATURED MOMENT','Capsule splits into a clip.','split'],['PUBLISHED','Capsule shoots outward.','publish'],['EARNINGS','Capsule becomes a glowing token.','reward']].map(([label,copy,key],index)=><article className={'journey-step '+key} key={label}><div className="journey-icon"><span/></div><span className="journey-index">0{index+1}</span><strong>{label}</strong><p>{copy}</p></article>)}</div></section>
-    <section className="clipper-proof"><div><span className="opus-kicker">CLIPPER PROFILES / VISIBLE WORK</span><h2>People who turn attention<br/><em>into a living.</em></h2><p>Ranks and badges reward consistency without turning the network into a game.</p><div className="role-actions"><a className="opus-primary" href="/auth?mode=signup&role=clipper">Start clipping <span>↗</span></a><a className="opus-outline" href="/feed">Explore clips <span>↗</span></a></div></div><article className="clipper-card"><div className="clipper-card-head"><img src={creatorPortrait('mina')} alt="Mina creator portrait" width={256} height={256} loading="lazy"/><div><strong>@mina</strong><span>Clipper · Hook-first editor</span></div><b>TOP 04</b></div><div className="clipper-stats"><span><strong>342</strong><small>clips</small></span><span><strong>4.8M</strong><small>reach</small></span><span><strong>18</strong><small>campaigns</small></span><span><strong>2.4 SOL</strong><small>earned</small></span></div><div className="badge-row"><span>Early Clipper</span><span>Top Distributor</span><span>Viral Finder</span></div></article></section>
 
-    <section className="opus-showcase opus-carousel-section" id="showcase"><div className="opus-section-heading"><div><span className="opus-kicker">LIVE CUTS / COMMUNITY SIGNAL</span><h2>Find the hook.<br/><em>Make it travel.</em></h2></div><a href="/feed">Open live feed <span>↗</span></a></div><div className="opus-carousel" aria-label="Generated vertical clip previews">{clips.length?clips.slice(0,6).map((clip,index)=><a className="opus-clip" key={clip.id} href={'/profile/'+clip.clipper_id}><PreviewMedia src={clip.video_url}/><div className="opus-clip-shade"/><span className="viral-score">{[99,98,94,97,96,92][index%6]}</span><div className="opus-clip-copy"><span>{clip.target_platforms?.join(' · ')||'ACCEPTED CUT'}</span><strong>{clip.campaign_title}</strong><small>@{clip.clipper_name} · {compact(clip.view_count)} views</small></div><b>↗</b></a>):ready?mockClips.map(mock=><div className="opus-clip opus-mock-clip" key={mock.label}><PreviewMedia src={DEMO_VIDEO}/><div className="mock-play">▶</div><span className="viral-score">{mock.score}</span><div className="opus-clip-copy"><span>PUMPCLIP PREVIEW</span><strong>{mock.label}</strong><small>Upload a video to generate your cut</small></div></div>):Array.from({length:4}).map((_,index)=><div className="opus-clip opus-skeleton" key={index}><span className="skeleton-circle"/><span className="skeleton-line wide"/><span className="skeleton-line"/></div>)}</div></section>
+    <section className="opus-showcase opus-carousel-section" id="showcase"><div className="opus-section-heading"><div><span className="opus-kicker">LIVE CUTS / COMMUNITY SIGNAL</span><h2>Real work.<br/><em>Moving in public.</em></h2></div><a href="/feed">Open live feed <span aria-hidden="true">↗</span></a></div><div className="opus-carousel" aria-label="Published creator clip previews">{clips.length?clips.slice(0,6).map(clip=><a className="opus-clip" key={clip.id} href={'/profile/'+clip.clipper_id}><PreviewMedia src={clip.video_url}/><div className="opus-clip-shade"/><div className="opus-clip-copy"><span>{clip.target_platforms?.join(' · ')||'PUBLISHED CUT'}</span><strong>{clip.campaign_title}</strong><small>@{clip.clipper_name} · {compact(clip.view_count)} views</small></div><b aria-hidden="true">↗</b></a>):ready?<div className="opus-feed-empty" role="status">New published clips will appear here as creators share their work.</div>:Array.from({length:4}).map((_,index)=><div className="opus-clip opus-skeleton" key={index}><span className="skeleton-circle"/><span className="skeleton-line wide"/><span className="skeleton-line"/></div>)}</div></section>
 
-    <section className="opus-network opus-top-creators"><div className="opus-section-heading"><div><span className="opus-kicker">THE NETWORK / CREATOR PROFILES</span><h2>Used by top creators,<br/><em>streamers, and clippers.</em></h2></div><a href="/people">View all people <span>↗</span></a></div><div className="opus-people-grid opus-people-grid-rich">{visiblePeople.length?visiblePeople.map(person=><a className="opus-person" key={person.id} href={'/profile/'+person.id}><span className="opus-person-avatar"><img src={creatorPortrait(person.id)} alt="" width={256} height={256} loading="lazy" />{person.display_name.slice(0,2).toUpperCase()}</span><div><strong>{person.display_name}</strong><small>{person.roles.map(role=>role==='streamer'?'Creator':'Clipper').join(' · ')}</small></div><b>{person.roles.includes('clipper')?earned(Number(person.earned_lamports||0)):compact(Number(person.campaign_count||0))+' campaigns'}<small>{person.roles.includes('clipper')?'earned':'published'}</small></b>{person.video_url&&<video src={person.video_url} muted loop playsInline preload="none" poster="/logo.svg" onError={event=>{event.currentTarget.style.display='none';}}/>}</a>):ready?fallbackPeople.map(person=><div className="opus-person opus-person-placeholder" key={person.name}><span className="opus-person-avatar"><img src={creatorPortrait(person.name)} alt="" width={256} height={256} loading="lazy" />{person.initials}</span><div><strong>{person.name}</strong><small>{person.role}</small></div><b>{person.metric}<small>{person.label}</small></b></div>):Array.from({length:6}).map((_,index)=><div className="opus-person opus-person-skeleton" key={index}><span className="skeleton-avatar"/><div><span className="skeleton-line wide"/><span className="skeleton-line"/></div></div>)}</div><div className="opus-logo-ticker" aria-label="Supported creator platforms">{logos.map(logo=><span key={logo}>{logo}</span>)}</div></section>
+    {(!ready||visiblePeople.length>0)&&<section className="opus-network opus-top-creators"><div className="opus-section-heading"><div><span className="opus-kicker">THE PUMPCLIP NETWORK / PUBLIC PROFILES</span><h2>Real creators.<br/><em>Real community signal.</em></h2></div><a href="/people">View all people <span aria-hidden="true">↗</span></a></div><div className="opus-people-grid opus-people-grid-rich">{visiblePeople.length?visiblePeople.map(person=>{const rewards=Number(person.earned_lamports||0);return <a className="opus-person" key={person.id} href={'/profile/'+person.id}><span className="opus-person-avatar">{person.avatar_url?<img src={person.avatar_url} alt="" width={256} height={256} loading="lazy" decoding="async"/>:<span className="opus-person-initials" aria-hidden="true">{person.display_name.slice(0,2).toUpperCase()}</span>}</span><div><strong title={person.display_name}>{person.display_name}</strong><small title={person.roles.join(' · ')}>{person.roles.map(role=>role==='streamer'?'Creator':'Clipper').join(' · ')}</small></div><b>{rewards>0?earned(rewards):compact(Number(person.total_views||0))+' views'}<small>{rewards>0?'earned on PumpClip':'total views'}</small></b>{person.video_url&&<video src={person.video_url} muted loop playsInline preload="none" poster="/logo.svg" onError={event=>{event.currentTarget.style.display='none';}} aria-label={`${person.display_name} published clip preview`}/>}</a>}):Array.from({length:6}).map((_,index)=><div className="opus-person opus-person-skeleton" key={index}><span className="skeleton-avatar"/><div><span className="skeleton-line wide"/><span className="skeleton-line"/></div></div>)}</div><div className="opus-logo-ticker" aria-label="Supported creator platforms">{logos.map(logo=><span key={logo}>{logo}</span>)}</div></section>}
 
-    <section className="opus-final"><span className="opus-kicker">START WITH THE MOMENT</span><h2>Bring the source.<br/><em>We’ll help it travel.</em></h2><a className="opus-primary" href="/dashboard">Open your workspace <span>↗</span></a></section><footer className="opus-footer"><a className="opus-logo" href="/" aria-label="pumpclips home"><img src="/logo.svg" alt="" width={1024} height={1024} /> <span>pumpclips</span></a><span>Creators own the source. Clippers earn the reach.</span><a href="/people">Explore the network ↗</a></footer>
+    <section className="opus-final"><span className="opus-kicker">START WITH THE MOMENT</span><h2>Bring the source.<br/><em>We’ll help it travel.</em></h2><a className="opus-primary" href="/auth?mode=signup">Create your account <span aria-hidden="true">↗</span></a></section><footer className="opus-footer"><a className="opus-logo" href="/" aria-label="pumpclips home"><img src="/logo.svg" alt="" width={1024} height={1024} /> <span>pumpclips</span></a><a href="/people">Explore the network ↗</a></footer>
   </main>;
 }
