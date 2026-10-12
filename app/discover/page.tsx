@@ -55,7 +55,7 @@ export default function DiscoverPage(){
   return <main className={styles.page}>
     <header className={styles.header}>
       <a className={styles.brand} href="/"><img src="/logo.svg" alt=""/><span>pumpclips</span></a>
-      <nav aria-label="Main navigation"><a href="/people">Creators</a><a href="/feed">Clips</a><a className={styles.signIn} href="/auth">Sign in ↗</a></nav>
+      <nav aria-label="Main navigation"><a href="/people">Creators</a><a href="/feed">Clips</a><a className={styles.signIn} href="/auth">Sign in </a></nav>
     </header>
 
     <section className={styles.hero}>
@@ -63,7 +63,7 @@ export default function DiscoverPage(){
         <p className={styles.eyebrow}>LIVE DISCOVERY / PUMP.FUN + CREATOR CAMPAIGNS</p>
         <h1>Find the next<br/><em>moment.</em></h1>
         <p>Browse live Pump.fun streams and active creator briefs. When you find a source worth clipping, send it into your private video workspace.</p>
-        <div className={styles.heroActions}><a className={styles.primary} href={clipHref()}>Open Clip Engine ↗</a><a className={styles.secondary} href="/people">Browse creators</a><button className={styles.secondary} type="button" onClick={()=>setTipOpen(true)}>Send SOL / Tip Creator</button></div>
+        <div className={styles.heroActions}><a className={styles.primary} href={clipHref()}>Open Clip Engine </a><a className={styles.secondary} href="/people">Browse creators</a><button className={styles.secondary} type="button" onClick={()=>setTipOpen(true)}>Send SOL / Tip Creator</button></div>
       </div>
       <aside className={styles.heroStats} aria-label="Current discovery inventory">
         <div><strong>{streamLoading?'—':streams.length}</strong><span>LIVE PUMP.FUN LISTINGS</span></div>
@@ -85,23 +85,23 @@ export default function DiscoverPage(){
         <div className={styles.cardTop}><span className={styles.liveTag}><i/> LIVE</span><span className={styles.categoryTag}>PUMP.FUN LIVE</span></div>
         <h3>{item.title||`Pump.fun stream ${item.mint.slice(0,8)}`}</h3>
         <p className={styles.mint}>TOKEN / {item.mint.slice(0,10)}…{item.mint.slice(-5)}</p>
-        <div className={styles.cardActions}><a href={clipHref(item.url)}>Create a clip ↗</a><a href={item.url} target="_blank" rel="noopener noreferrer" title="Opens the official Pump.fun player in a new tab">Watch on Pump.fun ↗</a></div>
+        <div className={styles.cardActions}><a href={clipHref(item.url)}>Create a clip </a><a href={item.url} target="_blank" rel="noopener noreferrer" title="Opens the official Pump.fun player in a new tab">Watch on Pump.fun </a></div>
       </article>)}</div>}
       <p className={styles.sourceNote}>Playback remains on Pump.fun because its player does not permit third-party embedding. Clip jobs are private to your account and require sign-in, clipper access, and available credits.</p>
     </section>}
 
     {(category==='All'||category!=='Pump.fun Live')&&<section className={styles.section} aria-labelledby="campaign-title">
-      <div className={styles.sectionHeading}><div><p className={styles.eyebrow}>CREATOR MARKETPLACE / {visibleCampaigns.length} CAMPAIGNS</p><h2 id="campaign-title">Briefs open for creators.</h2><p>Campaign categories and sources are loaded from the live marketplace.</p></div><a className={styles.textLink} href="/dashboard?view=discover">Open campaign workspace ↗</a></div>
+      <div className={styles.sectionHeading}><div><p className={styles.eyebrow}>CREATOR MARKETPLACE / {visibleCampaigns.length} CAMPAIGNS</p><h2 id="campaign-title">Briefs open for creators.</h2><p>Campaign categories and sources are loaded from the live marketplace.</p></div><a className={styles.textLink} href="/dashboard?view=discover">Open campaign workspace </a></div>
       {campaignLoading?<p className={styles.state} role="status">Loading active campaigns…</p>:campaignError?<p className={styles.error} role="alert">{campaignError}</p>:visibleCampaigns.length===0?<p className={styles.state}>No live campaigns in this category right now.</p>:<div className={styles.campaignGrid}>{visibleCampaigns.map(item=><article className={styles.campaignCard} key={item.id}>
         <div className={styles.cardTop}><span className={styles.categoryTag}>{item.category||'General'}</span><span className={styles.campaignState}>{item.state}</span></div>
         <h3>{item.title}</h3><p>{item.description||'Creator campaign brief.'}</p>
         {item.streamer_name&&<small className={styles.streamer}>BY {item.streamer_name.toUpperCase()}</small>}
-        <div className={styles.cardActions}>{item.source_url&&<a href={clipHref(item.source_url)}>Create a clip ↗</a>}<a href="/dashboard?view=discover">Open in workspace ↗</a></div>
+        <div className={styles.cardActions}>{item.source_url&&<a href={clipHref(item.source_url)}>Create a clip </a>}<a href="/dashboard?view=discover">Open in workspace </a></div>
       </article>)}</div>}
     </section>}
 
-    <section className={styles.bottomCta}><div><p className={styles.eyebrow}>FROM DISCOVERY TO DELIVERY</p><h2>Turn a source into a cut.</h2><p>Sign in with email or Google, then queue a private clipping job and follow its render status in the Clip Engine.</p></div><a className={styles.primary} href={clipHref()}>Start clipping ↗</a></section>
-    <footer className={styles.footer}><a className={styles.brand} href="/"><img src="/logo.svg" alt=""/><span>pumpclips</span></a><span>Live listings from Pump.fun · campaign data from PumpClip</span><a href="/people">Creator directory ↗</a></footer>
+    <section className={styles.bottomCta}><div><p className={styles.eyebrow}>FROM DISCOVERY TO DELIVERY</p><h2>Turn a source into a cut.</h2><p>Sign in with email or Google, then queue a private clipping job and follow its render status in the Clip Engine.</p></div><a className={styles.primary} href={clipHref()}>Start clipping </a></section>
+    <footer className={styles.footer}><a className={styles.brand} href="/"><img src="/logo.svg" alt=""/><span>pumpclips</span></a><span>Live listings from Pump.fun · campaign data from PumpClip</span><a href="/people">Creator directory </a></footer>
     {tipOpen&&<SolTipModal onClose={()=>setTipOpen(false)}/>}
   </main>;
 }

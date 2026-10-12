@@ -99,7 +99,7 @@ export default function SolTipModal({ onClose }: Props) {
                   {paymentUri ? <QRCodeSVG value={paymentUri} size={220} level="M" includeMargin title="Scan to send SOL" /> : <span className={styles.qrPlaceholder}>Correct the amount above to generate a payment QR code.</span>}
                 </div>
                 <p className={styles.qrHint}>Scan with Phantom, Solflare, or another Solana Pay-compatible wallet.</p>
-                {paymentUri && <a className={styles.walletLink} href={paymentUri}>Open in Solana wallet ↗</a>}
+                {paymentUri && <a className={styles.walletLink} href={paymentUri}>Open in Solana wallet </a>}
               </div>
 
               <div className={styles.details}>

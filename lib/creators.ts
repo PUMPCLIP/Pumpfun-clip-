@@ -44,6 +44,11 @@ export const FEATURED_CREATORS: FeaturedCreator[] = [
     socials: [
       {label: 'X', handle: '@blknoiz06', url: 'https://x.com/blknoiz06'},
     ],
+    referenceVideo: {
+      title: "Chatting with Ansem, AKA 'The Solana Guy'",
+      url: 'https://www.youtube.com/watch?v=Ahs7FL2-ldE',
+      youtubeId: 'Ahs7FL2-ldE',
+    },
   },
 ];
 

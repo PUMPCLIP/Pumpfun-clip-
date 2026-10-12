@@ -22,12 +22,12 @@ export default function Feed(){
   },[clips]);
 
   return <main className="feed-shell">
-    <header className="feed-header"><a className="brand official-brand" href="/"><img src="/logo.svg" alt=""/> <span>pumpclips</span></a><span className="eyebrow">DISCOVERY / LIVE CUTS</span><a className="outline" href="/dashboard">Dashboard ↗</a></header>
+    <header className="feed-header"><a className="brand official-brand" href="/"><img src="/logo.svg" alt=""/> <span>pumpclips</span></a><span className="eyebrow">DISCOVERY / LIVE CUTS</span><a className="outline" href="/dashboard">Dashboard </a></header>
     <section className="feed-intro"><div><div className="eyebrow">FOR YOU / 01</div><h1>Moments with momentum.</h1><p>Scroll through accepted cuts from the pumpclips community. Every view helps the editor build a reputation.</p></div></section>
     {loading?<div className="feed-state" role="status" aria-live="polite">Loading live cuts…</div>:error?<div className="feed-state error" role="alert">{error}</div>:clips.length===0?<div className="feed-state">No accepted cuts are live yet. Be the first to make one travel.</div>:<section className="feed-list" aria-label="Vertical clip feed">
       {clips.map(clip=><article className="feed-card" key={clip.id}>
         <video ref={el=>{refs.current[clip.id]=el}} data-clip-id={clip.id} src={clip.video_url} muted loop playsInline preload="none" aria-label={`Vertical clip preview: ${clip.campaign_title}`}/>
-        <div className="feed-overlay"><div className="feed-details"><div className="feed-tag">{clip.target_platforms?.join(' · ')||'SHORT-FORM CUT'}</div><h2>{clip.campaign_title}</h2><a className="feed-creator" href={'/profile/'+clip.clipper_id}><img src={creatorPortrait(clip.clipper_id)} alt=""/>@{clip.clipper_name} <span aria-hidden="true">↗</span></a></div><div className="feed-metrics" aria-label={`${Number(clip.view_count||0).toLocaleString()} views, accepted work`}><span>◉ {Number(clip.view_count||0).toLocaleString()}</span><span>Accepted work</span></div></div>
+        <div className="feed-overlay"><div className="feed-details"><div className="feed-tag">{clip.target_platforms?.join(' · ')||'SHORT-FORM CUT'}</div><h2>{clip.campaign_title}</h2><a className="feed-creator" href={'/profile/'+clip.clipper_id}><img src={creatorPortrait(clip.clipper_id)} alt=""/>@{clip.clipper_name} </a></div><div className="feed-metrics" aria-label={`${Number(clip.view_count||0).toLocaleString()} views, accepted work`}><span>◉ {Number(clip.view_count||0).toLocaleString()}</span><span>Accepted work</span></div></div>
       </article>)}
     </section>}
   </main>;

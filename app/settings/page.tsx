@@ -123,7 +123,7 @@ export default function SettingsPage(){
             <label>Public handle<div className="settings-handle-input"><span>@</span><input required minLength={3} maxLength={24} pattern="[A-Za-z0-9][A-Za-z0-9_-]*" value={handle} onChange={event=>setHandle(event.target.value.toLowerCase().replace(/[^a-z0-9_-]/g,''))} placeholder="yourname" autoComplete="username"/></div></label>
             <label className="settings-pumpfun-field">Pump.fun public profile URL<input type="url" maxLength={300} value={pumpfunUrl} onChange={event=>setPumpfunUrl(event.target.value)} placeholder="https://pump.fun/…" autoComplete="url"/></label>
             <p className="settings-handle-help">Handles are unique and public. Pump.fun links must use its HTTPS domain; this is a profile link, not Pump.fun sign-in or account verification.</p>
-            <div className="settings-profile-actions"><button className="settings-primary" type="submit" disabled={savingProfile}>{savingProfile?'Saving…':'Save profile'}</button>{account.publicHandle&&<Link className="settings-secondary" href={`/profile/${account.id}`}>View my public profile ↗</Link>}</div>
+            <div className="settings-profile-actions"><button className="settings-primary" type="submit" disabled={savingProfile}>{savingProfile?'Saving…':'Save profile'}</button>{account.publicHandle&&<Link className="settings-secondary" href={`/profile/${account.id}`}>View my public profile </Link>}</div>
           </form>
         </section>
         <div className="settings-grid">

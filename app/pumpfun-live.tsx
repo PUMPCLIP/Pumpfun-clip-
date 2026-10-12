@@ -35,11 +35,11 @@ export default function PumpFunLive(){
         <span className="pumpfun-live-dot">LIVE</span>
         <strong>{item.title}</strong>
         <small>{item.mint.slice(0,8)}…{item.mint.slice(-4)}</small>
-        <a className="pumpfun-live-open" href={item.url} target="_blank" rel="noopener noreferrer" title="Opens the official Pump.fun player in a new tab">Watch on Pump.fun ↗</a>
+        <a className="pumpfun-live-open" href={item.url} target="_blank" rel="noopener noreferrer" title="Opens the official Pump.fun player in a new tab">Watch on Pump.fun </a>
       </article>)}
     </div>}
     <div className="pumpfun-live-footer">
-      <a href="https://pump.fun/live" target="_blank" rel="noopener noreferrer">Browse all Pump.fun live streams ↗</a>
+      <a href="https://pump.fun/live" target="_blank" rel="noopener noreferrer">Browse all Pump.fun live streams </a>
       <span>Refreshes every 30 seconds</span>
     </div>
   </section>;

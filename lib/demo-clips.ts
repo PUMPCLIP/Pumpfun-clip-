@@ -1,34 +1,73 @@
-export type DemoClipCategory='crypto'|'gaming-irl'|'speed-kai'|'pokimane-amouranth';
-export type DemoClip={
-  slug:string;
-  name:string;
-  legalName:string;
-  role:string;
-  category:DemoClipCategory;
-  categoryLabel:string;
-  embedUrl:string;
-  aspectRatio:'9:16';
-  duration:string;
-  initials:string;
-  accent:'lime'|'violet'|'blue'|'amber';
-  caption:string[];
-  socialUrl:string;
-  socialLabel:string;
+import {CREATOR_SPOTLIGHTS, type CreatorSpotlight, type CreatorSpotlightCategory} from '@/lib/creator-spotlights';
+
+export type DemoClip = {
+  slug: string;
+  name: string;
+  role: string;
+  category: CreatorSpotlightCategory;
+  categoryLabel: string;
+  embedUrl: string;
+  aspectRatio: '9:16';
+  duration: string;
+  initials: string;
+  accent: 'lime' | 'violet' | 'blue' | 'amber';
+  socialUrl: string;
+  socialLabel: string;
+  videoId: string;
+  thumbnailUrl?: string;
+  clipTitle: string;
 };
 
-export const DEMO_CLIPS:DemoClip[]=[
-  {slug:'pokimane',name:'Pokimane',legalName:'Imane Anys',role:'Variety & Reaction Streamer',category:'gaming-irl',categoryLabel:'Gaming / IRL',embedUrl:'https://www.youtube.com/embed/bZwEbzllE8c?autoplay=1&mute=0&controls=0&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1&enablejsapi=1&loop=1&playlist=bZwEbzllE8c',aspectRatio:'9:16',duration:'00:52',initials:'P',accent:'violet',caption:['Wait, this is actually','the wildest take','I have heard today.'],socialUrl:'https://www.youtube.com/@pokimane',socialLabel:'YouTube'},
-  {slug:'amouranth',name:'Amouranth',legalName:'Kaitlyn Siragusa',role:'IRL & Live Stream Creator',category:'gaming-irl',categoryLabel:'Gaming / IRL',embedUrl:'https://www.youtube.com/embed/EJV-EZSDhJk?autoplay=1&mute=0&controls=0&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1&enablejsapi=1&loop=1&playlist=EJV-EZSDhJk',aspectRatio:'9:16',duration:'00:45',initials:'A',accent:'amber',caption:['The chat is moving','way too fast','right now.'],socialUrl:'https://www.youtube.com/@Amouranth',socialLabel:'YouTube'},
-  {slug:'layah-heilpern',name:'Layah Heilpern',legalName:'Layah Heilpern',role:'Crypto & Web3 Media Host',category:'crypto',categoryLabel:'Crypto',embedUrl:'https://www.youtube.com/embed/r1dkV28CCcw?autoplay=1&mute=0&controls=0&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1&enablejsapi=1&loop=1&playlist=r1dkV28CCcw',aspectRatio:'9:16',duration:'01:10',initials:'LH',accent:'lime',caption:['The signal is not','in the noise.','It is in the conviction.'],socialUrl:'https://x.com/layahheilpern',socialLabel:'X'},
-  {slug:'ishowspeed',name:'IShowSpeed',legalName:'Darren Watkins Jr.',role:'Live Stream Reactions',category:'gaming-irl',categoryLabel:'Gaming / IRL',embedUrl:'https://www.youtube.com/embed/VO2VFCEv_Fg?autoplay=1&mute=0&controls=0&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1&enablejsapi=1&loop=1&playlist=VO2VFCEv_Fg',aspectRatio:'9:16',duration:'01:12',initials:'IS',accent:'blue',caption:['No way they just','did that on stream!','That is crazy!'],socialUrl:'https://www.youtube.com/@IShowSpeed',socialLabel:'YouTube'},
-  {slug:'kai-cenat',name:'Kai Cenat',legalName:'Kai Cenat',role:'AMP Stream Highlights',category:'gaming-irl',categoryLabel:'Gaming / IRL',embedUrl:'https://www.youtube.com/embed/J6g894SCnLE?autoplay=1&mute=0&controls=0&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1&enablejsapi=1&loop=1&playlist=J6g894SCnLE',aspectRatio:'9:16',duration:'00:48',initials:'KC',accent:'amber',caption:['AMP is outside','and the energy','is already different.'],socialUrl:'https://www.youtube.com/@KaiCenatLive',socialLabel:'YouTube'},
-  {slug:'threadguy',name:'Threadguy',legalName:'Threadguy',role:'Crypto Streamer & Host',category:'crypto',categoryLabel:'Crypto',embedUrl:'https://www.youtube.com/embed/r1dkV28CCcw?autoplay=1&mute=0&controls=0&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1&enablejsapi=1&loop=1&playlist=r1dkV28CCcw',aspectRatio:'9:16',duration:'01:10',initials:'TG',accent:'lime',caption:['This is the moment','the whole timeline','starts paying attention.'],socialUrl:'https://x.com/notthreadguy',socialLabel:'X'},
-];
+const categoryLabels: Record<CreatorSpotlightCategory, string> = {
+  fashion: 'Fashion',
+  beauty: 'Beauty',
+  lifestyle: 'Lifestyle',
+  streaming: 'Live & gaming',
+  finance: 'Finance',
+};
 
-export const DEMO_CATEGORIES:Array<{key:'all'|'crypto'|'gaming-irl'|'speed-kai'|'pokimane-amouranth';label:string}> = [
-  {key:'all',label:'All'},
-  {key:'crypto',label:'Crypto'},
-  {key:'gaming-irl',label:'Gaming / IRL'},
-  {key:'speed-kai',label:'IShowSpeed & Kai'},
-  {key:'pokimane-amouranth',label:'Pokimane & Amouranth'},
+const categoryAccents: Record<CreatorSpotlightCategory, DemoClip['accent']> = {
+  fashion: 'amber',
+  beauty: 'violet',
+  lifestyle: 'blue',
+  streaming: 'lime',
+  finance: 'lime',
+};
+
+function initials(name: string) {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase();
+}
+
+function embedUrl(creator: CreatorSpotlight) {
+  const id = encodeURIComponent(creator.videoId);
+  if (creator.videoProvider === 'youtube') return `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&mute=1&controls=1&modestbranding=1&rel=0&playsinline=1&enablejsapi=1`;
+  if (creator.videoProvider === 'tiktok') return `https://www.tiktok.com/player/v1/${id}?controls=1&autoplay=0`;
+  return `https://www.instagram.com/reel/${id}/embed/`;
+}
+
+export const DEMO_CLIPS: DemoClip[] = CREATOR_SPOTLIGHTS.map(creator => ({
+  slug: creator.slug,
+  name: creator.name,
+  role: creator.role,
+  category: creator.category,
+  categoryLabel: categoryLabels[creator.category],
+  embedUrl: embedUrl(creator),
+  aspectRatio: '9:16',
+  duration: 'PUBLIC',
+  initials: initials(creator.name),
+  accent: categoryAccents[creator.category],
+  socialUrl: creator.profileUrl,
+  socialLabel: creator.videoProvider.toUpperCase(),
+  videoId: creator.videoId,
+  thumbnailUrl: creator.thumbnailUrl,
+  clipTitle: creator.clipTitle,
+}));
+
+export const DEMO_CATEGORIES: Array<{key: 'all' | CreatorSpotlightCategory; label: string}> = [
+  {key: 'all', label: 'All'},
+  {key: 'fashion', label: 'Fashion'},
+  {key: 'beauty', label: 'Beauty'},
+  {key: 'lifestyle', label: 'Lifestyle'},
+  {key: 'streaming', label: 'Live & gaming'},
+  {key: 'finance', label: 'Finance'},
 ];

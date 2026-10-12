@@ -56,24 +56,24 @@ export default function ProfilePage(){
     }catch(caught){setError(caught instanceof Error?caught.message:'Could not load this list.');setConnectionType(null);}
   }
 
-  if(error&&!profile)return <main className="profile-shell profile-error"><a className="back" href="/people">← Back to people</a><h1>{error}</h1><p>This public profile may have been removed or is not available yet.</p><a className="profile-action" href="/people">Browse people ↗</a></main>;
+  if(error&&!profile)return <main className="profile-shell profile-error"><a className="back" href="/people"> Back to people</a><h1>{error}</h1><p>This public profile may have been removed or is not available yet.</p><a className="profile-action" href="/people">Browse people </a></main>;
   if(!profile)return <main className="profile-shell profile-loading" role="status" aria-live="polite"><p>Loading profile…</p></main>;
   const works=profile.works||[],activities=profile.activities||[];
   return <main className="profile-shell">
     <header className="profile-header">
       <div className="profile-header-main">
-        <a className="back" href="/people">← People directory</a>
+        <a className="back" href="/people"> People directory</a>
         <div className="profile-identity">
           <img src={profile.avatar_url||creatorPortrait(profile.id)} alt={`${profile.display_name} profile avatar`}
             onError={event=>{event.currentTarget.onerror=null;event.currentTarget.src=creatorPortrait(profile.id);}}/>
           <div><div className="eyebrow">CREATOR / CLIPPER PROFILE</div><h1>{profile.display_name}</h1>{profile.public_handle&&<p className="profile-handle">@{profile.public_handle}</p>}</div>
         </div>
         <p>{profile.roles.map(role=>role.toUpperCase()).join(' · ')}</p>
-        <div className="profile-socials">{socialOrder.filter(key=>profile.social_links?.[key]).map(key=><a key={key} href={profile.social_links![key]} target="_blank" rel="noreferrer">{socialLabel[key]} ↗</a>)}</div>
+        <div className="profile-socials">{socialOrder.filter(key=>profile.social_links?.[key]).map(key=><a key={key} href={profile.social_links![key]} target="_blank" rel="noreferrer">{socialLabel[key]} </a>)}</div>
         <div className="profile-social-actions">
-          {profile.is_own_profile?<a className="profile-action" href="/settings">Edit profile & settings ↗</a>:profile.viewer_signed_in?
+          {profile.is_own_profile?<a className="profile-action" href="/settings">Edit profile & settings </a>:profile.viewer_signed_in?
             <button type="button" className="profile-follow-button" onClick={()=>void toggleFollow()} disabled={working} aria-pressed={profile.viewer_follows}>{working?'Saving…':profile.viewer_follows?'Following · Unfollow':'＋ Follow'}</button>:
-            <a className="profile-follow-button" href="/auth">Sign in to follow ↗</a>}
+            <a className="profile-follow-button" href="/auth">Sign in to follow </a>}
         </div>
       </div>
       <div className="reputation"><strong>{Number(profile.reputation_score).toFixed(1)}</strong><span>REPUTATION</span></div>
