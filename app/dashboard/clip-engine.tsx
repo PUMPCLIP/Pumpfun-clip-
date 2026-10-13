@@ -30,7 +30,7 @@ const previewAspect = (ratio: ClipJob['aspect_ratio']) => ratio === '16:9' ? '16
 
 async function readResponse<T>(response: Response): Promise<ApiPayload<T>> {
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) { const error = new Error(data.message || data.code || 'The request could not be completed.') as Error & { code?: string }; error.code = data.code; throw error; }
+  if (!response.ok) { const message = data.message || data.code || 'The request could not be completed.'; const error = new Error(data.requestId ? `${message} (reference: ${data.requestId})` : message) as Error & { code?: string }; error.code = data.code; throw error; }
   return data as ApiPayload<T>;
 }
 

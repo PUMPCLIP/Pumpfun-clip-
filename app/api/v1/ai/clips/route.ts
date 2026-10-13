@@ -88,8 +88,14 @@ export async function POST(request:Request){try{
     if(!matchesExisting(concurrent,input,sourceAssetId))throw new ApiError('IDEMPOTENCY_CONFLICT',409);
     return Response.json(concurrent,{status:200});
   }
-  await db.query("INSERT INTO audit_events(actor_id,action,subject_type,subject_id,detail) VALUES($1,'native_clip.queued','ai_clip_request',$2,$3)",
-    [user.user_id,row.id,JSON.stringify({aspectRatio:input.aspectRatio,hasSourceUrl:Boolean(input.sourceUrl),rightsConfirmed:Boolean(input.sourceUrl&&input.rightsConfirmed)})]);
+  try{
+    await db.query("INSERT INTO audit_events(actor_id,action,subject_type,subject_id,detail) VALUES($1,'native_clip.queued','ai_clip_request',$2,$3)",
+      [user.user_id,row.id,JSON.stringify({aspectRatio:input.aspectRatio,hasSourceUrl:Boolean(input.sourceUrl),rightsConfirmed:Boolean(input.sourceUrl&&input.rightsConfirmed)})]);
+  }catch(auditError){
+    // The job and its credit reservation already exist. A best-effort audit write
+    // must not make the client retry and accidentally create a second render.
+    console.error('native_clip_audit_failed',{jobId:row.id,error:String((auditError as Error)?.message||auditError)});
+  }
   await publishCreditEvent(user.user_id,'credit_reserved',{jobId:row.id,ledgerId:ledger.id,units:ledger.units}).catch(()=>{});
   return Response.json(row,{status:202});
 }catch(error){return jsonError(error,crypto.randomUUID());}}
