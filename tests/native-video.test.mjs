@@ -18,6 +18,10 @@ for invalid in ['00:60-01:10','00:00-04:00']:
     else: raise AssertionError('invalid time range accepted: '+invalid)
 assert engine.allowed_video_url('https://www.youtube.com/watch?v=abc')
 assert engine.allowed_video_url('https://youtu.be/8Rf0xna31xg?si=QTGsc4qNs')
+assert engine.youtube_client_profiles() == (('android', 'web'), ('web_safari',), ('android', 'tv_embedded'))
+public_options=engine._download_options(pathlib.Path('/tmp/pumpclip-test-source'), ('android', 'web'))
+assert public_options['extractor_args']['youtube']['player_client'] == ['android', 'web']
+assert 'cookiefile' not in public_options
 assert engine.allowed_video_url('https://vm.tiktok.com/abc')
 assert engine.allowed_video_url('https://www.instagram.com/reel/abc/')
 assert engine.allowed_video_url('https://x.com/user/status/1')

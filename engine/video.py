@@ -114,6 +114,54 @@ def probe_video(path: str | Path) -> dict:
     return {"duration": duration, "size": size, "streams": streams}
 
 
+def youtube_client_profiles() -> tuple[tuple[str, ...], ...]:
+    """Return public YouTube clients in the order to try on server workers.
+
+    YouTube changes which player clients are accepted from hosted IP ranges.
+    These are supported yt-dlp clients and do not require an authenticated
+    browser session or a cookie jar.  Keep the list finite: proxy rotation and
+    other bot-detection bypasses are deliberately not used by this service.
+    """
+    return (("android", "web"), ("web_safari",), ("android", "tv_embedded"))
+
+
+def _download_options(target: Path, client_profile: tuple[str, ...],
+                      cookie_file: str = "", download_hook=None) -> dict:
+    options = {
+        # Cap resolution for worker memory/storage limits.
+        "format": "best[height<=720][ext=mp4]/best[height<=720]/best[ext=mp4]/best",
+        "outtmpl": str(target) + ".%(ext)s",
+        "noplaylist": True,
+        "quiet": True,
+        "no_warnings": True,
+        "socket_timeout": 30,
+        "retries": 2,
+        "fragment_retries": 2,
+        "max_filesize": MAX_SOURCE_BYTES,
+        "js_runtimes": {"node": {}},
+        "extractor_args": {"youtube": {"player_client": list(client_profile)}},
+        "http_headers": {
+            "User-Agent": (
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                "Chrome/131.0.0.0 Safari/537.36"
+            )
+        },
+        "allowed_extractors": ["Youtube", "TikTok", "Instagram", "Twitter"],
+        "cachedir": False,
+    }
+    if download_hook:
+        options["progress_hooks"] = [download_hook]
+    if cookie_file:
+        options["cookiefile"] = cookie_file
+    return options
+
+
+def _cleanup_download_candidates(target: Path) -> None:
+    for candidate in target.parent.glob(target.name + ".*"):
+        if candidate.is_file() and candidate.suffix.lower() in (".part", ".ytdl"):
+            candidate.unlink(missing_ok=True)
+
+
 def download_video(url: str, output: str | Path) -> Path:
     if not allowed_video_url(url):
         raise ValueError("Use an HTTPS video URL from YouTube, TikTok, Instagram, or X")
@@ -153,49 +201,44 @@ def download_video(url: str, output: str | Path) -> Path:
             except (ValueError, OSError) as exc:
                 raise RuntimeError("YOUTUBE_COOKIES_B64 is not valid base64 cookie data") from exc
 
-    options = {
-        # Cap resolution for worker memory/storage limits. YouTube may require cookies for server IPs.
-        "format": "best[height<=720][ext=mp4]/best[height<=720]/best[ext=mp4]/best",
-        "outtmpl": str(target) + ".%(ext)s",
-        "noplaylist": True,
-        "quiet": True,
-        "no_warnings": True,
-        "socket_timeout": 30,
-        "retries": 2,
-        "fragment_retries": 2,
-        "max_filesize": MAX_SOURCE_BYTES,
-        "js_runtimes": {"node": {}},
-        "extractor_args": {"youtube": {"player_client": ["android", "tv_embedded"]}},
-        "allowed_extractors": ["Youtube", "TikTok", "Instagram", "Twitter"],
-        "cachedir": False,
-        "progress_hooks": [download_hook],
-    }
-    if cookie_file:
-        options["cookiefile"] = cookie_file
+    is_youtube = bool(host and host.lower().rstrip(".").endswith(("youtube.com", "youtu.be")))
+    profiles = youtube_client_profiles() if is_youtube else (("default",),)
+    last_error: Exception | None = None
+    downloaded = False
     try:
-        with yt_dlp.YoutubeDL(options) as downloader:
+        for profile in profiles:
+            _cleanup_download_candidates(target)
+            options = _download_options(target, profile, cookie_file, download_hook)
             try:
-                info = downloader.extract_info(url, download=True)
+                with yt_dlp.YoutubeDL(options) as downloader:
+                    info = downloader.extract_info(url, download=True)
+                    candidates = list(target.parent.glob(target.name + ".*"))
+                    candidates = [p for p in candidates if p.is_file() and p.suffix.lower() not in (".part", ".ytdl")]
+                    if not candidates:
+                        prepared = Path(downloader.prepare_filename(info))
+                        candidates = [prepared] if prepared.is_file() else []
+                    if not candidates:
+                        raise RuntimeError("The video downloader did not produce a source file")
+                    actual = max(candidates, key=lambda p: p.stat().st_size)
+                    if actual.stat().st_size > MAX_SOURCE_BYTES:
+                        actual.unlink(missing_ok=True)
+                        raise ValueError("Video file must be no larger than 512 MiB")
+                    actual.replace(target)
+                    downloaded = True
+                break
             except Exception as exc:
-                detail = str(exc)
-                if "Sign in to confirm" in detail or "not a bot" in detail or "Use --cookies" in detail:
-                    raise RuntimeError(
-                        "YouTube blocked this server download. Upload the video file instead, "
-                        "or configure YOUTUBE_COOKIES_B64 on the worker for an authorized source."
-                    ) from exc
-                raise
-            candidates = list(target.parent.glob(target.name + ".*"))
-            candidates = [p for p in candidates if p.is_file() and p.suffix.lower() not in (".part", ".ytdl")]
-            if not candidates:
-                prepared = Path(downloader.prepare_filename(info))
-                candidates = [prepared] if prepared.is_file() else []
-            if not candidates:
-                raise RuntimeError("The video downloader did not produce a source file")
-            actual = max(candidates, key=lambda p: p.stat().st_size)
-            if actual.stat().st_size > MAX_SOURCE_BYTES:
-                actual.unlink(missing_ok=True)
-                raise ValueError("Video file must be no larger than 512 MiB")
-            actual.replace(target)
+                last_error = exc
+                if not is_youtube or profile == profiles[-1]:
+                    break
+        if last_error is not None and not downloaded:
+            detail = str(last_error)
+            if is_youtube and ("Sign in to confirm" in detail or "not a bot" in detail or "Use --cookies" in detail):
+                cookie_hint = " Optional YOUTUBE_COOKIES_B64 can be configured for authorized sources."
+                raise RuntimeError(
+                    "YouTube public extraction was blocked after trying supported unauthenticated "
+                    "client profiles. Upload the video file instead." + cookie_hint
+                ) from last_error
+            raise last_error
     finally:
         if temporary_cookie_file:
             Path(temporary_cookie_file).unlink(missing_ok=True)
