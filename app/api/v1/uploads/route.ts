@@ -9,6 +9,7 @@ import path from 'node:path';
 import {db,one,audit,tx} from '@/lib/db';
 import {mutation,ApiError,jsonError} from '@/lib/auth';
 import {gate} from '@/lib/access';
+import {hasAvailableFreeTrialNativeClip} from '@/lib/ai-usage';
 import {rateLimit} from '@/lib/rate-limit';
 import {putMediaFile,removeMedia} from '@/lib/storage';
 import {mediaRoot} from '@/lib/media-root';
@@ -16,7 +17,7 @@ export const runtime='nodejs';
 const storage=mediaRoot;
 const MAX_UPLOAD_BYTES=150_000_000;
 type UploadKind='source'|'clip';
-type ParsedUpload={location:string;key:string;mime:string;size:number;kind:UploadKind;rightsDeclared:boolean};
+type ParsedUpload={location:string;key:string;mime:string;size:number;kind:UploadKind;rightsDeclared:boolean;purpose:string};
 
 function probe(file:string):Promise<{streams:{codec_type:string}[];format:{duration:string}}> {
   return new Promise((resolve,reject)=>{
@@ -36,9 +37,9 @@ async function parseUpload(request:Request):Promise<ParsedUpload>{
   try{
     return await new Promise<ParsedUpload>((resolve,reject)=>{
       const parser=Busboy({headers:{'content-type':contentType},limits:{files:1,fields:3,fieldSize:4096,fileSize:MAX_UPLOAD_BYTES}});
-      let key='',mime='',kind='',rightsDeclared=false,truncated=false,parseError:unknown=null;
+      let key='',mime='',kind='',purpose='',rightsDeclared=false,truncated=false,parseError:unknown=null;
       let uploadTask:Promise<void>|null=null;
-      parser.on('field',(name,value)=>{if(name==='kind')kind=value;else if(name==='rightsDeclared')rightsDeclared=value==='true';});
+      parser.on('field',(name,value)=>{if(name==='kind')kind=value;else if(name==='purpose')purpose=value;else if(name==='rightsDeclared')rightsDeclared=value==='true';});
       parser.on('file',(name,stream,info)=>{
         if(name!=='file'||uploadTask){parseError=new ApiError('INVALID_MEDIA',422);stream.resume();return;}
         if(!['video/mp4','video/quicktime','video/webm'].includes(info.mimeType))parseError=new ApiError('INVALID_MEDIA',422);
@@ -58,7 +59,9 @@ async function parseUpload(request:Request):Promise<ParsedUpload>{
           const size=(await stat(location)).size;
           if(truncated||!size||size>MAX_UPLOAD_BYTES)throw new ApiError('FILE_TOO_LARGE',413);
           if(kind!=='source'&&kind!=='clip')throw new ApiError('INVALID_MEDIA_KIND');
-          resolve({location,key,mime,size,kind,rightsDeclared});
+          if(purpose&&purpose!=='native_clip')throw new ApiError('INVALID_MEDIA_KIND');
+          if(purpose==='native_clip'&&kind!=='source')throw new ApiError('INVALID_MEDIA_KIND');
+          resolve({location,key,mime,size,kind,rightsDeclared,purpose});
         }catch(error){reject(error);}
       });
       try{
@@ -88,8 +91,14 @@ export async function POST(request:Request){
     upload=await parseUpload(request);
     if(upload.kind==='source'){
       if(upload.rightsDeclared!==true)throw new ApiError('SOURCE_RIGHTS_REQUIRED',422);
-      const accessRole=user.roles.includes('streamer')?'streamer':'clipper';
-      await gate(user.user_id,accessRole);
+      if(upload.purpose==='native_clip'){
+        if(!user.roles.includes('clipper'))throw new ApiError('ROLE_REQUIRED',403);
+        if(await hasAvailableFreeTrialNativeClip(user.user_id))await rateLimit(user.user_id,'native-clip-trial-upload',2,3600);
+        else await gate(user.user_id,'clipper');
+      }else{
+        const accessRole=user.roles.includes('streamer')?'streamer':'clipper';
+        await gate(user.user_id,accessRole);
+      }
     }
     const meta=await probe(upload.location);
     if(!meta.streams?.some(stream=>stream.codec_type==='video')||!Number.isFinite(Number(meta.format?.duration))||Number(meta.format.duration)<=0||Number(meta.format.duration)>14400)throw new ApiError('INVALID_MEDIA',422);

@@ -1,8 +1,18 @@
 import {db,one,tx} from './db';
 import {ApiError} from './auth';
+import {FREE_TRIAL_AVAILABILITY_SQL,NATIVE_CLIP_UNITS,canUseWalletlessTrialClip,isFreeTrialOnlyNativeClipReservation} from './clip-trial-eligibility';
 
-export const AI_UNIT_COSTS={highlight_analysis:1,native_clip:5} as const;
+export const AI_UNIT_COSTS={highlight_analysis:1,native_clip:NATIVE_CLIP_UNITS} as const;
 export type AiAction=keyof typeof AI_UNIT_COSTS;
+
+export async function hasAvailableFreeTrialNativeClip(userId:string){
+  await db.query('INSERT INTO ai_usage_accounts(user_id) VALUES($1) ON CONFLICT(user_id) DO NOTHING',[userId]);
+  const status=await one<any>(FREE_TRIAL_AVAILABILITY_SQL,[userId]);
+  return canUseWalletlessTrialClip(Number(status?.free_units||0),Boolean(status?.has_active_plan));
+}
+
+export {isFreeTrialOnlyNativeClipReservation};
+
 export async function reserveAiUnits(userId:string,action:AiAction,key:string,metadata:object={}){
   return tx(async c=>{
     const existing=await one<any>('SELECT * FROM ai_usage_ledger WHERE user_id=$1 AND idempotency_key=$2',[userId,key],c);

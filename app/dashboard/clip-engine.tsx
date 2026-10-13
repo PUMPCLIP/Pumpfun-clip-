@@ -128,6 +128,7 @@ export default function ClipEngine() {
   useCreditEvents({enabled:!authRequired,onEvent:()=>{void refreshJobs();void refreshPlan();},onError:status=>{if(status===401||status===403)setAuthRequired(true);else{void refreshJobs();void refreshPlan();}}});
 
   const preparePlan = async () => {
+    if(!plan?.wallet){window.location.assign('/settings');return;}
     setPlanBusy(true); setError('');
     try {
       const intent = await readResponse<{id:string;amountLamports:string;amountSol:string;destination:string;network:string;wallet:string}>(await fetch('/api/v1/clip-plan', {
@@ -224,6 +225,7 @@ export default function ClipEngine() {
         form.set('file', file);
         form.set('kind', 'source');
         form.set('rightsDeclared', 'true');
+        form.set('purpose', 'native_clip');
         const uploaded = await readResponse<{ id: string }>(await fetch('/api/v1/uploads', {
           method: 'POST',
           headers: { 'x-csrf-token': csrf() },
@@ -289,7 +291,7 @@ export default function ClipEngine() {
         <div className="clip-engine-times"><label className="clip-engine-field">Export format<select value={aspectRatio} onChange={event => setAspectRatio(event.target.value as ClipJob['aspect_ratio'])}><option value="9:16">9:16 · vertical</option><option value="1:1">1:1 · square</option><option value="16:9">16:9 · landscape</option></select></label><label className="clip-engine-field">Caption style<select value={captionStyle} onChange={event => setCaptionStyle(event.target.value as typeof captionStyle)}><option value="classic">Classic white</option><option value="bold">Bold outline</option><option value="signal">Signal yellow</option></select></label></div>
         <label className="clip-engine-field">On-screen caption<input type="text" maxLength={200} value={caption} onChange={event => setCaption(event.target.value)} placeholder="Optional hook burned into the clip"/><small>{caption.length}/200 characters</small></label>
         <button className="primary-action clip-engine-submit" type="submit" disabled={busy || authRequired}>{busy ? <><span className="clip-engine-spinner"/>Uploading and queueing…</> : 'Generate clip '}</button>
-        <p className="clip-engine-disclaimer">Processing requires an eligible Clipper account and available credits. Link ingestion supports YouTube, TikTok, Instagram, and X.</p>
+        <p className="clip-engine-disclaimer">Free trial clips require a signed-in Clipper account and available trial credits, but no linked wallet. Wallet eligibility is required for paid or annual credits. Link ingestion supports YouTube, TikTok, Instagram, and X.</p>
       </form>
 
       <aside className="clip-engine-side">
