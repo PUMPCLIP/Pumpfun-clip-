@@ -25,6 +25,12 @@ function safeSourceUrl(value:string){
       allowedDomains.some(domain=>host===domain||host.endsWith('.'+domain));
   }catch{return false;}
 }
+function requiresYoutubeCookies(value:string){
+  try{
+    const host=new URL(value).hostname.toLowerCase().replace(/^www\./,'');
+    return host==='youtube.com'||host.endsWith('.youtube.com')||host==='youtu.be';
+  }catch{return false;}
+}
 function matchesExisting(row:any,input:any,sourceAssetId:string|null){
   return row.engine==='native'&&row.source_asset_id===sourceAssetId&&row.source_url===(input.sourceUrl||null)&&
     row.campaign_id===(input.campaignId||null)&&row.instructions===input.instructions&&row.aspect_ratio===input.aspectRatio&&
@@ -49,6 +55,8 @@ export async function POST(request:Request){try{
   if(!parsed.success)throw new ApiError('INVALID_INPUT',400,parsed.error.issues.map(issue=>issue.message).join('; '));
   const input=parsed.data;
   if(input.sourceUrl&&!safeSourceUrl(input.sourceUrl))throw new ApiError('UNSUPPORTED_SOURCE_URL',422,'Use an HTTPS video page from YouTube, TikTok, Instagram, X, or Pump.fun.');
+  if(input.sourceUrl&&requiresYoutubeCookies(input.sourceUrl)&&!process.env.YOUTUBE_COOKIES_B64&&!process.env.YOUTUBE_COOKIES_FILE)
+    throw new ApiError('YOUTUBE_AUTH_REQUIRED',503,'YouTube is blocking anonymous server downloads. Upload the source video file, or ask the administrator to configure authorized YOUTUBE_COOKIES_B64 for the worker.');
 
   let sourceAssetId:string|null=input.sourceAssetId||null;
   if(input.campaignId){
