@@ -3,7 +3,7 @@ import {db,one} from '@/lib/db';
 import {mutation,requireUser,ApiError,jsonError} from '@/lib/auth';
 import {gate} from '@/lib/access';
 import {rateLimit} from '@/lib/rate-limit';
-import {reserveAiUnits,settleAiUnits} from '@/lib/ai-usage';
+import {hasAvailableFreeTrialNativeClip,isFreeTrialOnlyNativeClipReservation,reserveAiUnits,settleAiUnits} from '@/lib/ai-usage';
 import {publishCreditEvent} from '@/lib/credit-events';
 
 export const runtime='nodejs';
@@ -33,7 +33,8 @@ function matchesExisting(row:any,input:any,sourceAssetId:string|null){
     row.caption===input.caption&&row.caption_style===input.captionStyle;
 }
 export async function POST(request:Request){try{
-  const user=await mutation(request);await gate(user.user_id,'clipper');
+  const user=await mutation(request);
+  if(!user.roles.includes('clipper'))throw new ApiError('ROLE_REQUIRED',403);
   const key=request.headers.get('idempotency-key');if(!key||key.length>128)throw new ApiError('IDEMPOTENCY_KEY_REQUIRED');
   const parsed=z.object({
     sourceAssetId:uuid.optional(),sourceUrl:z.string().url().max(2048).optional(),campaignId:uuid.optional(),
@@ -71,9 +72,16 @@ export async function POST(request:Request){try{
     if(!matchesExisting(existing,input,sourceAssetId))throw new ApiError('IDEMPOTENCY_CONFLICT',409);
     return Response.json(existing,{status:200});
   }
+  const trialCanBypassWalletGate=await hasAvailableFreeTrialNativeClip(user.user_id);
+  if(!trialCanBypassWalletGate)await gate(user.user_id,'clipper');
   await rateLimit(user.user_id,'native-clip',20,3600);
+  const priorReservation=await one<{id:string}>('SELECT id FROM ai_usage_ledger WHERE user_id=$1 AND idempotency_key=$2',[user.user_id,key]);
   const ledger=await reserveAiUnits(user.user_id,'native_clip',key,{sourceAssetId,sourceUrl:input.sourceUrl||null,aspectRatio:input.aspectRatio});
   if(ledger.status!=='reserved')throw new ApiError('IDEMPOTENCY_KEY_ALREADY_SETTLED',409,'This idempotency key has already been settled; start a new job with a new key.');
+  if(trialCanBypassWalletGate&&!isFreeTrialOnlyNativeClipReservation(ledger)){
+    try{await gate(user.user_id,'clipper');}
+    catch(eligibilityError){if(!priorReservation)await settleAiUnits(ledger.id,'released').catch(()=>{});throw eligibilityError;}
+  }
   let row:any;
   try{row=await one<any>(`INSERT INTO ai_clip_requests(user_id,campaign_id,source_asset_id,source_url,instructions,aspect_ratio,
     start_seconds,end_seconds,caption,caption_style,usage_ledger_id,status,engine)
