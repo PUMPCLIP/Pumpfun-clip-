@@ -16,6 +16,8 @@ type ClipJob = {
   download_url?: string | null;
   error_message?: string | null;
   created_at: string;
+  updated_at?: string;
+  worker_started_at?: string | null;
 };
 
 type ApiPayload<T> = T & { message?: string; code?: string };
@@ -27,6 +29,7 @@ const csrf = () => decodeURIComponent(document.cookie.split('; ').find(cookie =>
 const assetUrl = (id: string) => `/api/v1/assets/${encodeURIComponent(id)}`;
 const timeLabel = (seconds?: number | null) => seconds == null ? '' : `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`;
 const previewAspect = (ratio: ClipJob['aspect_ratio']) => ratio === '16:9' ? '16 / 9' : ratio === '1:1' ? '1 / 1' : '9 / 16';
+const isYoutubeUrl = (value: string) => { try { const host = new URL(value).hostname.toLowerCase().replace(/^www\./, ''); return host === 'youtube.com' || host.endsWith('.youtube.com') || host === 'youtu.be'; } catch { return false; } };
 
 async function readResponse<T>(response: Response): Promise<ApiPayload<T>> {
   const data = await response.json().catch(() => ({}));
@@ -198,6 +201,15 @@ export default function ClipEngine() {
       setError('Paste a supported HTTPS video link first.');
       return;
     }
+    if (sourceMode === 'link' && isYoutubeUrl(sourceUrl.trim())) {
+      try {
+        const preflight = await readResponse<{ok:boolean;requiresUpload:boolean}>(await fetch(`/api/v1/ai/clips/preflight?url=${encodeURIComponent(sourceUrl.trim())}`, {cache:'no-store'}));
+        if (!preflight.ok || preflight.requiresUpload) {
+          setError('YouTube is currently blocked from Render downloads. Upload the video file instead; this link was stopped before it entered the queue.');
+          return;
+        }
+      } catch { setError('Could not verify YouTube availability. Upload the video file instead for a reliable render.'); return; }
+    }
     if (sourceMode === 'upload' && !file) {
       setError('Choose a video file to upload.');
       return;
@@ -287,7 +299,7 @@ export default function ClipEngine() {
 
         <div className="clip-engine-section-head clip-engine-edit-head"><div><span>02 / EDIT</span><h2>Set the cut.</h2></div></div>
         <div className="clip-engine-times"><label className="clip-engine-field">In point · seconds<input type="number" min="0" step="0.1" value={start} onChange={event => setStart(event.target.value)} placeholder="0"/></label><label className="clip-engine-field">Out point · seconds<input type="number" min="0.1" step="0.1" value={end} onChange={event => setEnd(event.target.value)} placeholder="30"/></label></div>
-        <label className="clip-engine-field">Instructions / optional time range<textarea rows={3} maxLength={2000} value={instructions} onChange={event => setInstructions(event.target.value)} placeholder="Optional: 00:45–01:12, or a note for the editor."/><small>Without timestamps, the engine exports the first 30 seconds.</small></label>
+        <label className="clip-engine-field">Instructions / optional time range<textarea rows={3} maxLength={2000} value={instructions} onChange={event => setInstructions(event.target.value)} placeholder="Optional: 00:45–01:12, or a note for the editor."/><small>Without timestamps, the engine exports the first 60 seconds (or the full source if shorter).</small></label>
         <div className="clip-engine-times"><label className="clip-engine-field">Export format<select value={aspectRatio} onChange={event => setAspectRatio(event.target.value as ClipJob['aspect_ratio'])}><option value="9:16">9:16 · vertical</option><option value="1:1">1:1 · square</option><option value="16:9">16:9 · landscape</option></select></label><label className="clip-engine-field">Caption style<select value={captionStyle} onChange={event => setCaptionStyle(event.target.value as typeof captionStyle)}><option value="classic">Classic white</option><option value="bold">Bold outline</option><option value="signal">Signal yellow</option></select></label></div>
         <label className="clip-engine-field">On-screen caption<input type="text" maxLength={200} value={caption} onChange={event => setCaption(event.target.value)} placeholder="Optional hook burned into the clip"/><small>{caption.length}/200 characters</small></label>
         <button className="primary-action clip-engine-submit" type="submit" disabled={busy || authRequired}>{busy ? <><span className="clip-engine-spinner"/>Uploading and queueing…</> : 'Generate clip '}</button>

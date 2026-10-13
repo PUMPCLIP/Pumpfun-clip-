@@ -10,7 +10,7 @@ export const runtime='nodejs';
 const uuid=z.string().uuid();
 export async function GET(){try{
   const user=await requireUser();
-  const result=await db.query(`SELECT id,status,aspect_ratio,start_seconds,end_seconds,output_asset_id,error_message,created_at,
+  const result=await db.query(`SELECT id,status,aspect_ratio,start_seconds,end_seconds,output_asset_id,error_message,created_at,updated_at,worker_started_at,
       CASE WHEN output_asset_id IS NULL THEN NULL ELSE '/api/v1/assets/'||output_asset_id::text END AS preview_url,
       CASE WHEN output_asset_id IS NULL THEN NULL ELSE '/api/v1/assets/'||output_asset_id::text||'?download=1' END AS download_url
     FROM ai_clip_requests WHERE user_id=$1 AND engine='native' ORDER BY created_at DESC LIMIT 12`,[user.user_id]);
@@ -55,9 +55,6 @@ export async function POST(request:Request){try{
   if(!parsed.success)throw new ApiError('INVALID_INPUT',400,parsed.error.issues.map(issue=>issue.message).join('; '));
   const input=parsed.data;
   if(input.sourceUrl&&!safeSourceUrl(input.sourceUrl))throw new ApiError('UNSUPPORTED_SOURCE_URL',422,'Use an HTTPS video page from YouTube, TikTok, Instagram, X, or Pump.fun.');
-  if(input.sourceUrl&&requiresYoutubeCookies(input.sourceUrl)&&!process.env.YOUTUBE_COOKIES_B64&&!process.env.YOUTUBE_COOKIES_FILE)
-    throw new ApiError('YOUTUBE_AUTH_REQUIRED',503,'YouTube is blocking anonymous server downloads. Upload the source video file, or ask the administrator to configure authorized YOUTUBE_COOKIES_B64 for the worker.');
-
   let sourceAssetId:string|null=input.sourceAssetId||null;
   if(input.campaignId){
     const campaign=await one<any>(`SELECT c.source_asset_id,c.source_url FROM campaigns c JOIN campaign_memberships m ON m.campaign_id=c.id
@@ -68,6 +65,8 @@ export async function POST(request:Request){try{
     if(!sourceAssetId&&campaign.source_url)input.sourceUrl=campaign.source_url;
     sourceAssetId=campaign.source_asset_id;
   }
+  if(input.sourceUrl&&requiresYoutubeCookies(input.sourceUrl)&&!process.env.YOUTUBE_COOKIES_B64&&!process.env.YOUTUBE_COOKIES_FILE)
+    throw new ApiError('YOUTUBE_AUTH_REQUIRED',503,'YouTube is blocking anonymous server downloads. Upload the source video file, or ask the administrator to configure authorized YOUTUBE_COOKIES_B64 for the worker.');
   if(sourceAssetId){
     const asset=await one<any>(`SELECT a.id FROM media_assets a WHERE a.id=$1 AND a.kind='source' AND a.status='verified'
       AND (a.owner_id=$2 OR EXISTS(SELECT 1 FROM campaigns c JOIN campaign_memberships m ON m.campaign_id=c.id

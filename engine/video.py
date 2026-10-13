@@ -17,6 +17,7 @@ from urllib.parse import urlparse, urlunsplit
 
 MAX_SOURCE_BYTES = 512 * 1024 * 1024
 MAX_SOURCE_SECONDS = 4 * 60 * 60
+DEFAULT_CLIP_SECONDS = 60.0
 ASPECTS = {"9:16": (1080, 1920), "1:1": (1080, 1080), "16:9": (1920, 1080)}
 ALLOWED_DOMAINS = (
     "youtube.com", "youtu.be", "tiktok.com", "instagram.com", "x.com", "twitter.com",
@@ -351,7 +352,7 @@ def main() -> None:
             start, end = args.start, args.end
             if start is None and end is None:
                 parsed = parse_range(args.instructions)
-                start, end = parsed if parsed else (0.0, min(30.0, metadata["duration"]))
+                start, end = parsed if parsed else (0.0, min(DEFAULT_CLIP_SECONDS, metadata["duration"]))
             elif start is None or end is None:
                 raise ValueError("Both clip start and end times are required")
             result = extract_clip(args.input, args.output, start, end,

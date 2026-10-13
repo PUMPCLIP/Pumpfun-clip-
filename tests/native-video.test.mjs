@@ -34,6 +34,7 @@ else: raise AssertionError('private CDN redirect accepted')
 for invalid in ['http://youtube.com/watch?v=x','https://youtube.com.evil.test/watch?v=x','https://127.0.0.1/video','https://youtube.com@127.0.0.1/video','https://youtube.com:8443/watch?v=x']:
     assert not engine.allowed_video_url(invalid), invalid
 assert engine.ASPECTS == {'9:16':(1080,1920),'1:1':(1080,1080),'16:9':(1920,1080)}
+assert engine.DEFAULT_CLIP_SECONDS == 60.0
 with tempfile.TemporaryDirectory(prefix='pumpclip-video-test-') as tmp:
     tmp=pathlib.Path(tmp); source=tmp/'source.mp4'
     subprocess.run(['ffmpeg','-hide_banner','-loglevel','error','-y','-f','lavfi','-i','testsrc=size=320x240:rate=24:duration=8','-f','lavfi','-i','sine=frequency=440:duration=8','-c:v','libx264','-pix_fmt','yuv420p','-c:a','aac','-shortest',str(source)],check=True,timeout=90)

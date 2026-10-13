@@ -131,6 +131,7 @@ async function processJob(job){
  },Math.max(10_000,Math.floor(LEASE_MS/3)));
  heartbeat.unref();
  try{
+  console.log(JSON.stringify({event:'native_clip_started',jobId:job.id,source:job.source_asset_id?'upload':'url',requestedStart:job.start_seconds,requestedEnd:job.end_seconds}));
   await mkdir(root,{recursive:true,mode:0o700});
   await (await import('node:fs/promises')).rm(dir,{recursive:true,force:true});
   await mkdir(dir,{recursive:true,mode:0o700});
@@ -138,9 +139,11 @@ async function processJob(job){
    const downloaded=await invoke(['download','--url',job.source_url,'--output',input]);
    input=downloaded.path;
   }else input=await objectToFile(job.asset_object_key,input);
+  console.log(JSON.stringify({event:'native_clip_source_ready',jobId:job.id}));
   const args=['render','--input',input,'--output',output,'--aspect-ratio',job.aspect_ratio||'9:16','--caption',job.caption||'','--caption-style',job.caption_style||'classic','--instructions',job.instructions||''];
   if(job.start_seconds!==null&&job.end_seconds!==null)args.push('--start',String(job.start_seconds),'--end',String(job.end_seconds));
   const rendered=await invoke(args);
+  console.log(JSON.stringify({event:'native_clip_render_ready',jobId:job.id,duration:rendered.duration}));
   const fileStats=await stat(rendered.path);
   if(fileStats.size<1024)throw new Error('Rendered output is unexpectedly small');
   const assetId=await persistOutput(job,rendered.path,rendered);
