@@ -17,6 +17,7 @@ for invalid in ['00:60-01:10','00:00-04:00']:
     except ValueError: pass
     else: raise AssertionError('invalid time range accepted: '+invalid)
 assert engine.allowed_video_url('https://www.youtube.com/watch?v=abc')
+assert engine.allowed_video_url('https://youtu.be/8Rf0xna31xg?si=QTGsc4qNs')
 assert engine.allowed_video_url('https://vm.tiktok.com/abc')
 assert engine.allowed_video_url('https://www.instagram.com/reel/abc/')
 assert engine.allowed_video_url('https://x.com/user/status/1')
