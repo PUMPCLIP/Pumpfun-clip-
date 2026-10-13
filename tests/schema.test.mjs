@@ -1,12 +1,34 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
+import {readFileSync,readdirSync} from 'node:fs';
 import {PGlite} from '@electric-sql/pglite';
+
+test('repair migration restores annual clip-plan credit columns after schema drift',async()=>{
+  const db=new PGlite();
+  try {
+    const migrations=readdirSync('db/migrations').filter(name=>/^\d+_.+\.sql$/.test(name)&&name!=='028_repair_clip_plan_credit_columns.sql').sort();
+    for(const name of migrations) await db.exec(readFileSync('db/migrations/'+name,'utf8').replace('CREATE EXTENSION IF NOT EXISTS pgcrypto;',''));
+    const user=(await db.query("INSERT INTO users(google_sub,email,display_name) VALUES('migration-repair','repair@example.com','Repair') RETURNING id")).rows[0].id;
+    await db.query("INSERT INTO clip_plans(user_id,status,plan_name,deposit_lamports,treasury,period_start,period_end) VALUES($1,'active','annual_60000',2000000000,'treasury',now()-interval '1 day',now()+interval '364 days')",[user]);
+
+    // Reproduce production drift despite migration 021 having been applied.
+    await db.exec('ALTER TABLE clip_plans DROP COLUMN credits_used_units CASCADE; ALTER TABLE clip_plans DROP COLUMN credit_limit_units CASCADE;');
+    await db.exec(readFileSync('db/migrations/028_repair_clip_plan_credit_columns.sql','utf8'));
+
+    const plan=(await db.query('SELECT plan_name,credit_limit_units,credits_used_units FROM clip_plans WHERE user_id=$1',[user])).rows[0];
+    assert.deepEqual(plan,{plan_name:'annual_60000',credit_limit_units:60000,credits_used_units:0});
+    const secondUser=(await db.query("INSERT INTO users(google_sub,email,display_name) VALUES('migration-repair-new','new@example.com','New') RETURNING id")).rows[0].id;
+    await db.query("INSERT INTO clip_plans(user_id,deposit_lamports,treasury) VALUES($1,2000000000,'treasury')",[secondUser]);
+    const defaults=(await db.query('SELECT credit_limit_units,credits_used_units FROM clip_plans WHERE user_id=$1',[secondUser])).rows[0];
+    assert.deepEqual(defaults,{credit_limit_units:60000,credits_used_units:0});
+    await assert.rejects(db.query('UPDATE clip_plans SET credit_limit_units=0 WHERE user_id=$1',[user]));
+  } finally {await db.close();}
+});
 
 test('database rejects wallet reuse, duplicate clip hashes and overreserved escrow',async()=>{
   const db=new PGlite();
   try {
-    for(const name of ['001_core.sql','002_studio.sql','003_rewards.sql','004_ai.sql','005_social.sql','006_tiktok.sql','007_youtube_uploads.sql','008_publications.sql','009_proof_and_operations.sql','010_identity_and_payouts.sql','011_feed_ai_usage.sql','012_native_video_clips.sql','013_creator_workflow.sql','014_worker_leases.sql','016_supabase_auth_identity.sql','017_public_profiles_pumpfun.sql','018_clip_trial_plan.sql','019_user_profiles.sql','020_profiles_social_activity.sql','021_annual_clip_plan.sql','022_clip_payment_observability.sql','023_alert_pipeline.sql','024_mainnet_wallet_watch_targets.sql','025_clip_attribution_earnings.sql','026_credit_event_replay.sql','027_clip_interaction_events.sql']) {
+    for(const name of ['001_core.sql','002_studio.sql','003_rewards.sql','004_ai.sql','005_social.sql','006_tiktok.sql','007_youtube_uploads.sql','008_publications.sql','009_proof_and_operations.sql','010_identity_and_payouts.sql','011_feed_ai_usage.sql','012_native_video_clips.sql','013_creator_workflow.sql','014_worker_leases.sql','016_supabase_auth_identity.sql','017_public_profiles_pumpfun.sql','018_clip_trial_plan.sql','019_user_profiles.sql','020_profiles_social_activity.sql','021_annual_clip_plan.sql','022_clip_payment_observability.sql','023_alert_pipeline.sql','024_mainnet_wallet_watch_targets.sql','025_clip_attribution_earnings.sql','026_credit_event_replay.sql','027_clip_interaction_events.sql','028_repair_clip_plan_credit_columns.sql']) {
       const sql=readFileSync('db/migrations/'+name,'utf8').replace('CREATE EXTENSION IF NOT EXISTS pgcrypto;','');
       await db.exec(sql);
     }
@@ -78,7 +100,7 @@ test('database rejects wallet reuse, duplicate clip hashes and overreserved escr
 test('account anonymization removes login and social identity but preserves campaign and reward history',async()=>{
   const db=new PGlite();
   try{
-    for(const name of ['001_core.sql','002_studio.sql','003_rewards.sql','004_ai.sql','005_social.sql','006_tiktok.sql','007_youtube_uploads.sql','008_publications.sql','009_proof_and_operations.sql','010_identity_and_payouts.sql','011_feed_ai_usage.sql','012_native_video_clips.sql','013_creator_workflow.sql','014_worker_leases.sql','016_supabase_auth_identity.sql','017_public_profiles_pumpfun.sql','018_clip_trial_plan.sql','019_user_profiles.sql','020_profiles_social_activity.sql','021_annual_clip_plan.sql','022_clip_payment_observability.sql','023_alert_pipeline.sql','024_mainnet_wallet_watch_targets.sql','025_clip_attribution_earnings.sql','026_credit_event_replay.sql','027_clip_interaction_events.sql']) {
+    for(const name of ['001_core.sql','002_studio.sql','003_rewards.sql','004_ai.sql','005_social.sql','006_tiktok.sql','007_youtube_uploads.sql','008_publications.sql','009_proof_and_operations.sql','010_identity_and_payouts.sql','011_feed_ai_usage.sql','012_native_video_clips.sql','013_creator_workflow.sql','014_worker_leases.sql','016_supabase_auth_identity.sql','017_public_profiles_pumpfun.sql','018_clip_trial_plan.sql','019_user_profiles.sql','020_profiles_social_activity.sql','021_annual_clip_plan.sql','022_clip_payment_observability.sql','023_alert_pipeline.sql','024_mainnet_wallet_watch_targets.sql','025_clip_attribution_earnings.sql','026_credit_event_replay.sql','027_clip_interaction_events.sql','028_repair_clip_plan_credit_columns.sql']) {
       await db.exec(readFileSync('db/migrations/'+name,'utf8').replace('CREATE EXTENSION IF NOT EXISTS pgcrypto;',''));
     }
     const owner=(await db.query("INSERT INTO users(google_sub,email,display_name,public_handle) VALUES('owner-auth','owner@example.com','Owner','owner') RETURNING id")).rows[0].id;
