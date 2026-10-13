@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import ipaddress
+import os
 import re
 import socket
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from urllib.parse import urlparse, urlunsplit
 
@@ -131,9 +134,26 @@ def download_video(url: str, output: str | Path) -> Path:
         if status.get("status") == "downloading" and status.get("info_dict", {}).get("url"):
             validate_download_url(status["info_dict"]["url"])
 
+    cookie_file = os.environ.get("YOUTUBE_COOKIES_FILE", "").strip()
+    temporary_cookie_file: str | None = None
+    if host and host.lower().rstrip(".").endswith(("youtube.com", "youtu.be")):
+        cookie_b64 = os.environ.get("YOUTUBE_COOKIES_B64", "").strip()
+        if cookie_b64 and not cookie_file:
+            try:
+                decoded = base64.b64decode(cookie_b64, validate=True)
+                if len(decoded) > 2 * 1024 * 1024:
+                    raise ValueError("YouTube cookie data is too large")
+                handle = tempfile.NamedTemporaryFile(prefix="pumpclip-youtube-", suffix=".txt", delete=False)
+                handle.write(decoded)
+                handle.close()
+                os.chmod(handle.name, 0o600)
+                temporary_cookie_file = handle.name
+                cookie_file = handle.name
+            except (ValueError, OSError) as exc:
+                raise RuntimeError("YOUTUBE_COOKIES_B64 is not valid base64 cookie data") from exc
+
     options = {
-        # Public YouTube web clients may return a bot challenge from server IPs.
-        # These anonymous clients are supported without browser cookies; cap resolution for worker memory/storage limits.
+        # Cap resolution for worker memory/storage limits. YouTube may require cookies for server IPs.
         "format": "best[height<=720][ext=mp4]/best[height<=720]/best[ext=mp4]/best",
         "outtmpl": str(target) + ".%(ext)s",
         "noplaylist": True,
@@ -149,20 +169,35 @@ def download_video(url: str, output: str | Path) -> Path:
         "cachedir": False,
         "progress_hooks": [download_hook],
     }
-    with yt_dlp.YoutubeDL(options) as downloader:
-        info = downloader.extract_info(url, download=True)
-        candidates = list(target.parent.glob(target.name + ".*"))
-        candidates = [p for p in candidates if p.is_file() and p.suffix.lower() not in (".part", ".ytdl")]
-        if not candidates:
-            prepared = Path(downloader.prepare_filename(info))
-            candidates = [prepared] if prepared.is_file() else []
-        if not candidates:
-            raise RuntimeError("The video downloader did not produce a source file")
-        actual = max(candidates, key=lambda p: p.stat().st_size)
-        if actual.stat().st_size > MAX_SOURCE_BYTES:
-            actual.unlink(missing_ok=True)
-            raise ValueError("Video file must be no larger than 512 MiB")
-        actual.replace(target)
+    if cookie_file:
+        options["cookiefile"] = cookie_file
+    try:
+        with yt_dlp.YoutubeDL(options) as downloader:
+            try:
+                info = downloader.extract_info(url, download=True)
+            except Exception as exc:
+                detail = str(exc)
+                if "Sign in to confirm" in detail or "not a bot" in detail or "Use --cookies" in detail:
+                    raise RuntimeError(
+                        "YouTube blocked this server download. Upload the video file instead, "
+                        "or configure YOUTUBE_COOKIES_B64 on the worker for an authorized source."
+                    ) from exc
+                raise
+            candidates = list(target.parent.glob(target.name + ".*"))
+            candidates = [p for p in candidates if p.is_file() and p.suffix.lower() not in (".part", ".ytdl")]
+            if not candidates:
+                prepared = Path(downloader.prepare_filename(info))
+                candidates = [prepared] if prepared.is_file() else []
+            if not candidates:
+                raise RuntimeError("The video downloader did not produce a source file")
+            actual = max(candidates, key=lambda p: p.stat().st_size)
+            if actual.stat().st_size > MAX_SOURCE_BYTES:
+                actual.unlink(missing_ok=True)
+                raise ValueError("Video file must be no larger than 512 MiB")
+            actual.replace(target)
+    finally:
+        if temporary_cookie_file:
+            Path(temporary_cookie_file).unlink(missing_ok=True)
     probe_video(target)
     return target
 
