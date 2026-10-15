@@ -13,6 +13,9 @@ export async function GET(request:Request){
   try {
     const value=new URL(request.url).searchParams.get('url')||'';
     const youtube=isYoutube(value);
-    return Response.json({ok:!youtube||Boolean(process.env.YOUTUBE_COOKIES_B64||process.env.YOUTUBE_COOKIES_FILE),youtube,requiresUpload:youtube&&!process.env.YOUTUBE_COOKIES_B64&&!process.env.YOUTUBE_COOKIES_FILE});
+    // Availability checks must not reject a job before it reaches the worker.
+    // yt-dlp owns the ordered public-client fallback and returns the real
+    // extraction error if the hosting IP is challenged by YouTube.
+    return Response.json({ok:true,youtube,requiresUpload:false});
   } catch(error) { return jsonError(error,crypto.randomUUID()); }
 }

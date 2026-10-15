@@ -29,7 +29,6 @@ const csrf = () => decodeURIComponent(document.cookie.split('; ').find(cookie =>
 const assetUrl = (id: string) => `/api/v1/assets/${encodeURIComponent(id)}`;
 const timeLabel = (seconds?: number | null) => seconds == null ? '' : `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`;
 const previewAspect = (ratio: ClipJob['aspect_ratio']) => ratio === '16:9' ? '16 / 9' : ratio === '1:1' ? '1 / 1' : '9 / 16';
-const isYoutubeUrl = (value: string) => { try { const host = new URL(value).hostname.toLowerCase().replace(/^www\./, ''); return host === 'youtube.com' || host.endsWith('.youtube.com') || host === 'youtu.be'; } catch { return false; } };
 
 async function readResponse<T>(response: Response): Promise<ApiPayload<T>> {
   const data = await response.json().catch(() => ({}));
@@ -201,15 +200,6 @@ export default function ClipEngine() {
       setError('Paste a supported HTTPS video link first.');
       return;
     }
-    if (sourceMode === 'link' && isYoutubeUrl(sourceUrl.trim())) {
-      try {
-        const preflight = await readResponse<{ok:boolean;requiresUpload:boolean}>(await fetch(`/api/v1/ai/clips/preflight?url=${encodeURIComponent(sourceUrl.trim())}`, {cache:'no-store'}));
-        if (!preflight.ok || preflight.requiresUpload) {
-          setError('YouTube is currently blocked from Render downloads. Upload the video file instead; this link was stopped before it entered the queue.');
-          return;
-        }
-      } catch { setError('Could not verify YouTube availability. Upload the video file instead for a reliable render.'); return; }
-    }
     if (sourceMode === 'upload' && !file) {
       setError('Choose a video file to upload.');
       return;
@@ -294,7 +284,7 @@ export default function ClipEngine() {
           <button type="button" className={sourceMode === 'link' ? 'selected' : ''} aria-pressed={sourceMode === 'link'} onClick={() => setSourceMode('link')}>Video link</button>
           <button type="button" className={sourceMode === 'upload' ? 'selected' : ''} aria-pressed={sourceMode === 'upload'} onClick={() => setSourceMode('upload')}>Upload file</button>
         </div>
-        {sourceMode === 'link' ? <label className="clip-engine-field">Supported video URL<input type="url" value={sourceUrl} onChange={event => setSourceUrl(event.target.value)} placeholder="https://www.youtube.com/watch?v=…" autoComplete="url"/><small>YouTube, TikTok, Instagram, X, and authorized Pump.fun campaign sources.</small></label> : <label className="clip-engine-field">Source video<input type="file" accept="video/mp4,video/quicktime,video/webm" onChange={event => setFile(event.target.files?.[0] || null)}/><small>MP4, MOV, or WebM · maximum 150 MB</small></label>}
+        {sourceMode === 'link' ? <label className="clip-engine-field">Supported video URL<input type="url" value={sourceUrl} onChange={event => setSourceUrl(event.target.value)} placeholder="https://www.youtube.com/watch?v=…" autoComplete="url"/><small>YouTube, TikTok, Instagram, X, and authorized Pump.fun campaign sources.</small></label> : <label className="clip-engine-field">Source video<input type="file" accept="video/*" onChange={event => setFile(event.target.files?.[0] || null)}/><small>Common video formats supported by FFmpeg · maximum 150 MB</small></label>}
         <label className="clip-engine-rights"><input type="checkbox" checked={rightsConfirmed} onChange={event => setRightsConfirmed(event.target.checked)}/><span>I own this video or have permission to download, edit, and use it.</span></label>
 
         <div className="clip-engine-section-head clip-engine-edit-head"><div><span>02 / EDIT</span><h2>Set the cut.</h2></div></div>

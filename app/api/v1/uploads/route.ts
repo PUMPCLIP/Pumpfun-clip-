@@ -42,7 +42,7 @@ async function parseUpload(request:Request):Promise<ParsedUpload>{
       parser.on('field',(name,value)=>{if(name==='kind')kind=value;else if(name==='purpose')purpose=value;else if(name==='rightsDeclared')rightsDeclared=value==='true';});
       parser.on('file',(name,stream,info)=>{
         if(name!=='file'||uploadTask){parseError=new ApiError('INVALID_MEDIA',422);stream.resume();return;}
-        if(!['video/mp4','video/quicktime','video/webm'].includes(info.mimeType))parseError=new ApiError('INVALID_MEDIA',422);
+        if(!info.mimeType.toLowerCase().startsWith('video/'))parseError=new ApiError('INVALID_MEDIA',422);
         key=crypto.randomUUID()+'.bin';location=path.join(storage,key);mime=info.mimeType;
         stream.on('limit',()=>{truncated=true;});
         uploadTask=pipeline(stream,createWriteStream(location,{flags:'wx',mode:0o600}));
