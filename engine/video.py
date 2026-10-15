@@ -345,11 +345,12 @@ def extract_clip(source: str | Path, output: str | Path, start: float, end: floa
         vf += f",subtitles='{_filter_path(subtitle)}':force_style='{style}'"
 
     _run([
-        "ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(source),
-        "-ss", f"{start:.3f}", "-t", f"{end - start:.3f}", "-map", "0:v:0", "-map", "0:a?",
-        "-vf", vf, "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p",
-        "-threads", "1", "-filter_threads", "1", "-filter_complex_threads", "1",
-        "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", str(target),
+        "ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-ss", f"{start:.3f}",
+        "-i", str(source), "-t", f"{end - start:.3f}", "-map", "0:v:0", "-map", "0:a?",
+        "-vf", vf, "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
+        "-crf", "24", "-pix_fmt", "yuv420p", "-threads", "1", "-filter_threads", "1",
+        "-filter_complex_threads", "1", "-x264-params", "rc-lookahead=0:ref=1:bframes=0",
+        "-c:a", "aac", "-b:a", "96k", "-movflags", "+faststart", str(target),
     ])
     return target
 
